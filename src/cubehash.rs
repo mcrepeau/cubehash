@@ -15,34 +15,13 @@ const ROUNDS: i32 = 16;
 const BLOCKSIZE: i32 = 32;
 const MAXHASHLEN: i32 = 512;
 
-unsafe fn print_value(value: __m128i, tag: &str, index: i32, limit: i32) {
-    if index < limit {
-        let buffer = std::mem::transmute::<__m128i, [u64; 2]>(value);
-        print!("\n{} {:016x} {:016x}", tag, buffer[1], buffer[0]);
-    }
-}
-
-pub unsafe fn _cubehash(mut input: &mut Stdin, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
-    //eprintln!("Hashing using CubeHash{}+16/32+{}-{}...", irounds, frounds, hashlen);
+pub unsafe fn _cubehash(input: &mut Stdin, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
+    eprintln!("Hashing using CubeHash{}+16/32+{}-{}...", irounds, frounds, hashlen);
     
     let mut done = false;
     let mut eof = false;
     let mut more = true;
-    //let mut data: [u8; BUFSIZE as usize] = [0; BUFSIZE as usize]; // What's the best way to initialize this??
-
-    let mut data = {
-        let mut data: [std::mem::MaybeUninit<u8>; BUFSIZE as usize] = std::mem::MaybeUninit::uninit().assume_init();
-
-        //for elem in &mut data[..] {
-        //    std::ptr::write(elem.as_mut_ptr(), 0);
-        //}
-
-        for i in 0..BUFSIZE {
-            data[i as usize] = std::mem::MaybeUninit::new(0);
-        }
-
-        std::mem::transmute::<_, [u8; BUFSIZE as usize]>(data)
-    };
+    let mut data: [u8; BUFSIZE as usize] = [0; BUFSIZE as usize];
 
     let mut x0: __m128i = _mm_set_epi32(0, ROUNDS, BLOCKSIZE, hashlen / 8);
     let mut x1: __m128i = _mm_set_epi32(0, 0, 0, 0);
@@ -59,10 +38,6 @@ pub unsafe fn _cubehash(mut input: &mut Stdin, irounds: i32, frounds: i32, hashl
     let mut y3: __m128i;
 
     let mut datasize = irounds / ROUNDS * BLOCKSIZE;
-    
-    // equivalent to a memset, not sure what's best here
-    //ptr::write_bytes(&mut data, 0, datasize as usize); // segmentation fault here!
-    //for i in &mut data[0..datasize as usize] { *i = 0 }
 
     while !done {
         let mut pos: *const __m128i = &data[0 as usize] as *const _ as *const __m128i;
@@ -108,20 +83,14 @@ pub unsafe fn _cubehash(mut input: &mut Stdin, irounds: i32, frounds: i32, hashl
                 x1 = _mm_xor_si128(x1, x5);
                 x2 = _mm_xor_si128(x2, x6);
                 x3 = _mm_xor_si128(x3, x7);
-
-                //print_value(x0, "x0: ", 0, 1);
-                //print_value(x1, "x1: ", 0, 1);
-                //print_value(x2, "x2: ", 0, 1);
-                //print_value(x3, "x3: ", 0, 1);
             }
         }
-
         done = !more;
 
         if more {
             if eof {
                 datasize = frounds / ROUNDS * BLOCKSIZE;
-                ptr::write_bytes(&mut input, 0, datasize as usize);
+                for i in &mut data[0..datasize as usize] { *i = 0 }
                 x7 = _mm_xor_si128(x7, _mm_set_epi32(0, 1, 0, 0));
                 more = false;
             } else {
@@ -129,7 +98,7 @@ pub unsafe fn _cubehash(mut input: &mut Stdin, irounds: i32, frounds: i32, hashl
 
                 if datasize < BUFSIZE {
                     let padsize = BLOCKSIZE - datasize % BLOCKSIZE;
-                    ptr::write_bytes(&mut data[datasize as usize], 0, padsize as usize);
+                    ptr::write_bytes(&mut data[datasize as usize], 0, padsize as usize); // unsafe?
                     data[datasize as usize] = 0x80;
                     datasize += padsize;
                     eof = true;

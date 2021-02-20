@@ -8,7 +8,7 @@ fn main() {
     let revision = 3;
 
     let result = cubehash(&mut stdin, revision, hashlen);
-    
+
     for i in 0..hashlen / 8 {
         print!("{:02x}", result[i as usize]);
     }
