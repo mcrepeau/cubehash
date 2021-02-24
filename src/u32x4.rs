@@ -20,8 +20,8 @@ impl U32x4 {
     }
 
     pub fn shift_left(self, mask: u32) -> U32x4 {
-    U32x4 { a: self.a.wrapping_shl(mask), b: self.b.wrapping_shl(mask), c: self.c.wrapping_shl(mask), d: self.d.wrapping_shl(mask) }
-}
+        U32x4 { a: self.a.wrapping_shl(mask), b: self.b.wrapping_shl(mask), c: self.c.wrapping_shl(mask), d: self.d.wrapping_shl(mask) }
+    }
 
     pub fn shift_right(self, mask: u32) -> U32x4 {
         U32x4 { a: self.a.wrapping_shr(mask), b: self.b.wrapping_shr(mask), c: self.c.wrapping_shr(mask), d: self.d.wrapping_shr(mask) }
