@@ -1,7 +1,25 @@
 [package]
 name = "cubehash"
-version = "0.1.0"
-authors = ["Matthieu Crépeau <matthieu.crepeau@ibm.com>"]
+version = "1.0.0"
+description = "Cubehash hash functions"
+authors = ["Matthieu Crepeau"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+digest = "0.9"
+crypto-mac = "0.8"
+#opaque-debug = "0.3"
+
+[dev-dependencies]
+digest = { version = "0.9", features = ["dev"] }
+crypto-mac = { version = "0.8", features = ["dev"] }
+#hex-literal = "0.2"
+
+[features]
+default = ["std"]
+std = ["digest/std", "crypto-mac/std"]
+simd = []
+simd_opt = ["simd"]
+simd_asm = ["simd_opt"]

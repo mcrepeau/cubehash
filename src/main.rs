@@ -1,22 +1,34 @@
-use std::io;
-use std::env;
-#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
-mod u32x4;
+//#![no_std]
+#![warn(rust_2018_idioms)]
+#![cfg_attr(feature = "simd", feature(platform_intrinsics, repr_simd))]
+#![cfg_attr(feature = "simd_asm", feature(asm))]
+
+#[cfg(feature = "std")]
+extern crate std;
+
+mod as_bytes;
+mod consts;
 mod cubehash;
+mod simd;
+
 use crate::cubehash::cubehash;
+pub use crypto_mac;
+pub use digest::{self, Digest};
+use std::env;
+use std::io;
 
 fn help() {
     println!("Usage: cubehash [OPTIONS] [PARAMETERS]                                        ");
-	println!("                                                                              ");
-	println!("OPTIONS                                                                       ");
-	println!("  -2    Use the second revision of proposed CubeHash parameters, implementing ");
-	println!("        CubeHash160+16/32+160-h for hash length h.                            ");
-	println!("  -3    Use the third revision of proposed CubeHash parameters, implementing  ");
-	println!("        CubeHash16+16/32+32-h for hash length h. This is the default.         ");
-	println!("  -l HASHLEN                                                                  ");
-	println!("        Set the hash length in bits (default: 256). The hash length must be   ");
-	println!("        positive, evenly divisible by 8, and not greater than 512.            ");
-	println!("  -h    Show this help text and exit.                                         ");
+    println!("                                                                              ");
+    println!("OPTIONS                                                                       ");
+    println!("  -2    Use the second revision of proposed CubeHash parameters, implementing ");
+    println!("        CubeHash160+16/32+160-h for hash length h.                            ");
+    println!("  -3    Use the third revision of proposed CubeHash parameters, implementing  ");
+    println!("        CubeHash16+16/32+32-h for hash length h. This is the default.         ");
+    println!("  -l HASHLEN                                                                  ");
+    println!("        Set the hash length in bits (default: 256). The hash length must be   ");
+    println!("        positive, evenly divisible by 8, and not greater than 512.            ");
+    println!("  -h    Show this help text and exit.                                         ");
 }
 
 fn main() {
@@ -34,26 +46,24 @@ fn main() {
                 "-h" => {
                     help();
                     return;
-                },
-                _ => { 
+                }
+                _ => {
                     eprintln!("error: invalid command");
                     help();
                     return;
                 }
             }
-        },
+        }
         3 => {
             let cmd = &args[1];
             let num = &args[2];
             let number: i32 = match num.parse() {
-                Ok(n) => {
-                    n
-                },
+                Ok(n) => n,
                 Err(_) => {
                     eprintln!("error: second argument not an integer");
                     help();
                     return;
-                },
+                }
             };
             match &cmd[..] {
                 "-l" => {
@@ -62,27 +72,25 @@ fn main() {
                         return;
                     }
                     hashlen = number
-                },
+                }
                 _ => {
                     eprintln!("error: invalid command");
                     help();
                     return;
-                },
+                }
             }
-        },
+        }
         4 => {
             let cmd1 = &args[1];
             let cmd2 = &args[2];
             let num = &args[3];
             let number: i32 = match num.parse() {
-                Ok(n) => {
-                    n
-                },
+                Ok(n) => n,
                 Err(_) => {
                     eprintln!("error: second argument not an integer");
                     help();
                     return;
-                },
+                }
             };
 
             match &cmd1[..] {
@@ -92,7 +100,7 @@ fn main() {
                     eprintln!("error: invalid command");
                     help();
                     return;
-                },
+                }
             }
 
             match &cmd2[..] {
@@ -102,16 +110,15 @@ fn main() {
                         return;
                     }
                     hashlen = number
-                },
+                }
                 _ => {
                     eprintln!("error: invalid command");
                     help();
                     return;
-                },
+                }
             }
-        },
-        _ => {
         }
+        _ => {}
     }
 
     let result = cubehash(&mut stdin, revision, hashlen);

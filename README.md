@@ -6,6 +6,8 @@ This is a Rust implementation of the CubeHash Hash function both using SIMD intr
 
 ### Compile
 ` cargo build --release`
+### Compile with platform-intrinsics
+`cargo +nightly build --features="simd, simd_opt, simd_asm" --release
 ### Run
 ` ./target/release/cubehash < file`
 ### More info
