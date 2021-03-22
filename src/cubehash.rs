@@ -31,16 +31,9 @@ fn load(data: &[u8], pos: usize) -> u32x4 {
         as_u32_le(&data[pos + 0..pos + 4]),
     )
 }
-/*
-fn print_vector(vec: u32x4, tag: &str) {
-    print!(
-        "\n{} {:08x} {:08x} {:08x} {:08x}",
-        tag, vec.0, vec.1, vec.2, vec.3
-    );
-}
-*/
+
 pub unsafe fn _cubehash(input: &mut Stdin, irounds: i32, frounds: i32, hashlen: i32) -> Output {
-    //eprintln!("Hashing using CubeHash{}+16/32+{}-{}...", irounds, frounds, hashlen);
+    eprintln!("Hashing using CubeHash{}+16/32+{}-{}...", irounds, frounds, hashlen);
     let mut done = false;
     let mut eof = false;
     let mut more = true;
