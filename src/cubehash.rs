@@ -6,15 +6,9 @@ use std::io::Stdin;
 
 use digest::generic_array::typenum::U64;
 use digest::generic_array::GenericArray;
+use std::convert::TryInto;
 
 type Output = GenericArray<u8, U64>;
-
-fn as_u32_le(array: &[u8]) -> u32 {
-    ((array[0] as u32) << 0)
-        + ((array[1] as u32) << 8)
-        + ((array[2] as u32) << 16)
-        + ((array[3] as u32) << 24)
-}
 
 fn copy(src: &[u8], dst: &mut [u8]) {
     assert!(dst.len() >= src.len());
@@ -23,12 +17,17 @@ fn copy(src: &[u8], dst: &mut [u8]) {
     }
 }
 
+fn read_le_u32(input: &[u8]) -> u32 {
+    let (int_bytes, _rest) = input.split_at(std::mem::size_of::<u32>());
+    u32::from_le_bytes(int_bytes.try_into().unwrap())
+}
+
 fn load(data: &[u8], pos: usize) -> u32x4 {
     u32x4::new(
-        as_u32_le(&data[pos + 12..pos + 16]),
-        as_u32_le(&data[pos + 8..pos + 12]),
-        as_u32_le(&data[pos + 4..pos + 8]),
-        as_u32_le(&data[pos + 0..pos + 4]),
+        read_le_u32(&data[pos + 12..pos + 16]),
+        read_le_u32(&data[pos + 8..pos + 12]),
+        read_le_u32(&data[pos + 4..pos + 8]),
+        read_le_u32(&data[pos + 0..pos + 4]),
     )
 }
 
