@@ -31,6 +31,18 @@ fn load(data: &[u8], pos: usize) -> u32x4 {
     )
 }
 
+fn add_shuffle_1032(vec1: u32x4, vec2: u32x4) -> u32x4 {
+    vec1 + vec2.shuffle_1032()
+}
+
+fn add_shuffle_2301(vec1: u32x4, vec2: u32x4) -> u32x4 {
+    vec1 + vec2.shuffle_2301()
+}
+
+fn shl_xor_shr(vec1: u32x4, vec2: u32x4, lbits: u32, rbits: u32) -> u32x4 {
+    (vec1.rotate_left_const(lbits) ^ vec1.rotate_right_const(rbits)) ^ vec2
+}
+
 pub unsafe fn _cubehash(input: &mut Stdin, irounds: i32, frounds: i32, hashlen: i32) -> Output {
     eprintln!("Hashing using CubeHash{}+16/32+{}-{}...", irounds, frounds, hashlen);
     let mut done = false;
@@ -60,45 +72,38 @@ pub unsafe fn _cubehash(input: &mut Stdin, irounds: i32, frounds: i32, hashlen: 
 
         while pos < end {
             x0 = x0 ^ load(&data, pos as usize);
+            //u32x4::from_slice_unaligned(&data[pos as usize..(pos + 16) as usize]);
             pos += 16;
 
             x1 = x1 ^ load(&data, pos as usize);
             pos += 16;
 
             for _i in 0..ROUNDS {
-                x4 = x0 + x4.shuffle_1032();
-                x5 = x1 + x5.shuffle_1032();
-                x6 = x2 + x6.shuffle_1032();
-                x7 = x3 + x7.shuffle_1032();
+                x4 = add_shuffle_1032(x0, x4);
+                x5 = add_shuffle_1032(x1, x5);
+                x6 = add_shuffle_1032(x2, x6);
+                x7 = add_shuffle_1032(x3, x7);
                 y0 = x2;
                 y1 = x3;
                 y2 = x0;
                 y3 = x1;
-                x0 = y0.rotate_left_const(7) ^ y0.rotate_right_const(25);
-                x1 = y1.rotate_left_const(7) ^ y1.rotate_right_const(25);
-                x2 = y2.rotate_left_const(7) ^ y2.rotate_right_const(25);
-                x3 = y3.rotate_left_const(7) ^ y3.rotate_right_const(25);
-                x0 = x0 ^ x4;
-                x1 = x1 ^ x5;
-                x2 = x2 ^ x6;
-                x3 = x3 ^ x7;
+                x0 = shl_xor_shr(y0, x4, 7, 25);
+                x1 = shl_xor_shr(y1, x5, 7, 25);
+                x2 = shl_xor_shr(y2, x6, 7, 25);
+                x3 = shl_xor_shr(y3, x7, 7, 25);
 
-                x4 = x0 + x4.shuffle_2301();
-                x5 = x1 + x5.shuffle_2301();
-                x6 = x2 + x6.shuffle_2301();
-                x7 = x3 + x7.shuffle_2301();
+                x4 = add_shuffle_2301(x0, x4);
+                x5 = add_shuffle_2301(x1, x5);
+                x6 = add_shuffle_2301(x2, x6);
+                x7 = add_shuffle_2301(x3, x7);
                 y0 = x1;
                 y1 = x0;
                 y2 = x3;
                 y3 = x2;
-                x0 = y0.rotate_left_const(11) ^ y0.rotate_right_const(21);
-                x1 = y1.rotate_left_const(11) ^ y1.rotate_right_const(21);
-                x2 = y2.rotate_left_const(11) ^ y2.rotate_right_const(21);
-                x3 = y3.rotate_left_const(11) ^ y3.rotate_right_const(21);
-                x0 = x0 ^ x4;
-                x1 = x1 ^ x5;
-                x2 = x2 ^ x6;
-                x3 = x3 ^ x7;
+                x0 = shl_xor_shr(y0, x4, 11, 21);
+                x1 = shl_xor_shr(y1, x5, 11, 21);
+                x2 = shl_xor_shr(y2, x6, 11, 21);
+                x3 = shl_xor_shr(y3, x7, 11, 21);
             }
         }
         done = !more;
