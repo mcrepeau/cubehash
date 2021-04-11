@@ -1,7 +1,4 @@
-//#![no_std]
-#![warn(rust_2018_idioms)]
 #![cfg_attr(feature = "simd", feature(platform_intrinsics, repr_simd))]
-#![cfg_attr(feature = "simd_asm", feature(asm))]
 
 #[cfg(feature = "std")]
 extern crate std;

@@ -19,7 +19,7 @@ fn copy(src: &[u8], dst: &mut [u8]) {
 
 fn read_le_u32(input: &[u8]) -> u32 {
     let (int_bytes, _rest) = input.split_at(std::mem::size_of::<u32>());
-    u32::from_le_bytes(int_bytes.try_into().unwrap())
+    u32::from_ne_bytes(int_bytes.try_into().unwrap())
 }
 
 fn load(data: &[u8], pos: usize) -> u32x4 {
@@ -72,7 +72,6 @@ pub unsafe fn _cubehash(input: &mut Stdin, irounds: i32, frounds: i32, hashlen: 
 
         while pos < end {
             x0 = x0 ^ load(&data, pos as usize);
-            //u32x4::from_slice_unaligned(&data[pos as usize..(pos + 16) as usize]);
             pos += 16;
 
             x1 = x1 ^ load(&data, pos as usize);

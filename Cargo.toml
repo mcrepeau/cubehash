@@ -10,16 +10,16 @@ edition = "2018"
 [dependencies]
 digest = "0.9"
 crypto-mac = "0.8"
-#opaque-debug = "0.3"
 
 [dev-dependencies]
 digest = { version = "0.9", features = ["dev"] }
 crypto-mac = { version = "0.8", features = ["dev"] }
-#hex-literal = "0.2"
 
 [features]
 default = ["std"]
 std = ["digest/std", "crypto-mac/std"]
 simd = []
-simd_opt = ["simd"]
-simd_asm = ["simd_opt"]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
