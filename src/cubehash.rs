@@ -43,7 +43,7 @@ fn shl_xor_shr(vec1: u32x4, vec2: u32x4, lbits: u32, rbits: u32) -> u32x4 {
     (vec1.rotate_left_const(lbits) ^ vec1.rotate_right_const(rbits)) ^ vec2
 }
 
-pub unsafe fn _cubehash(input: &mut Stdin, irounds: i32, frounds: i32, hashlen: i32, iv: [u32; 32]) -> Output {
+pub fn _cubehash(input: &mut Stdin, irounds: i32, frounds: i32, hashlen: i32, iv: [u32; 32]) -> Output {
     eprintln!("Hashing using CubeHash{}+16/32+{}-{}...", irounds, frounds, hashlen);
     let mut done = false;
     let mut eof = false;
@@ -139,15 +139,13 @@ pub unsafe fn _cubehash(input: &mut Stdin, irounds: i32, frounds: i32, hashlen: 
 }
 
 pub fn cubehash(input: &mut Stdin, revision: i32, hashlen: i32) -> Output {
-    unsafe {
-        match if hashlen <= MAXHASHLEN && hashlen % 8 == 0 {
-            revision
-        } else {
-            0
-        } {
-            3 => return _cubehash(input, 16, 32, hashlen, CUBEHASH_3_IV),
-            2 => return _cubehash(input, 160, 160, hashlen, CUBEHASH_2_IV),
-            _ => return GenericArray::default(),
-        };
-    }
+    match if hashlen <= MAXHASHLEN && hashlen % 8 == 0 {
+        revision
+    } else {
+        0
+    } {
+        3 => return _cubehash(input, 16, 32, hashlen, CUBEHASH_3_IV),
+        2 => return _cubehash(input, 160, 160, hashlen, CUBEHASH_2_IV),
+        _ => return GenericArray::default(),
+    };
 }
