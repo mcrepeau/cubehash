@@ -43,21 +43,21 @@ fn shl_xor_shr(vec1: u32x4, vec2: u32x4, lbits: u32, rbits: u32) -> u32x4 {
     (vec1.rotate_left_const(lbits) ^ vec1.rotate_right_const(rbits)) ^ vec2
 }
 
-pub unsafe fn _cubehash(input: &mut Stdin, irounds: i32, frounds: i32, hashlen: i32) -> Output {
+pub unsafe fn _cubehash(input: &mut Stdin, irounds: i32, frounds: i32, hashlen: i32, iv: [u32; 32]) -> Output {
     eprintln!("Hashing using CubeHash{}+16/32+{}-{}...", irounds, frounds, hashlen);
     let mut done = false;
     let mut eof = false;
     let mut more = true;
     let mut data: [u8; BUFSIZE as usize] = [0; BUFSIZE as usize];
 
-    let mut x0 = u32x4::new(0, ROUNDS as u32, BLOCKSIZE as u32, (hashlen / 8) as u32);
-    let mut x1 = u32x4::new(0, 0, 0, 0);
-    let mut x2 = u32x4::new(0, 0, 0, 0);
-    let mut x3 = u32x4::new(0, 0, 0, 0);
-    let mut x4 = u32x4::new(0, 0, 0, 0);
-    let mut x5 = u32x4::new(0, 0, 0, 0);
-    let mut x6 = u32x4::new(0, 0, 0, 0);
-    let mut x7 = u32x4::new(0, 0, 0, 0);
+    let mut x0 = u32x4::new(iv[0], iv[1], iv[2], iv[3]);
+    let mut x1 = u32x4::new(iv[4], iv[5], iv[6], iv[7]);
+    let mut x2 = u32x4::new(iv[8], iv[9], iv[10], iv[11]);
+    let mut x3 = u32x4::new(iv[12], iv[13], iv[14], iv[15]);
+    let mut x4 = u32x4::new(iv[16], iv[17], iv[18], iv[19]);
+    let mut x5 = u32x4::new(iv[20], iv[21], iv[22], iv[23]);
+    let mut x6 = u32x4::new(iv[24], iv[25], iv[26], iv[27]);
+    let mut x7 = u32x4::new(iv[28], iv[29], iv[30], iv[31]);
 
     let mut y0: u32x4;
     let mut y1: u32x4;
@@ -67,6 +67,28 @@ pub unsafe fn _cubehash(input: &mut Stdin, irounds: i32, frounds: i32, hashlen: 
     let mut datasize = irounds / ROUNDS * BLOCKSIZE;
 
     while !done {
+        if more {
+            if eof {
+                datasize = frounds / ROUNDS * BLOCKSIZE;
+                for i in &mut data[0..datasize as usize] {
+                    *i = 0
+                }
+                x7 = x7 ^ u32x4::new(0, 1, 0, 0);
+                more = false;
+            } else {
+                datasize = input.read(&mut data).unwrap() as i32;
+                if datasize < BUFSIZE {
+                    let padsize = BLOCKSIZE - datasize % BLOCKSIZE;
+                    for i in &mut data[datasize as usize..(datasize + padsize) as usize] {
+                        *i = 0
+                    }
+                    data[datasize as usize] = 0x80;
+                    datasize += padsize;
+                    eof = true;
+                }
+            }
+        }
+
         let mut pos = 0;
         let end = datasize - 1;
 
@@ -105,29 +127,9 @@ pub unsafe fn _cubehash(input: &mut Stdin, irounds: i32, frounds: i32, hashlen: 
                 x3 = shl_xor_shr(y3, x7, 11, 21);
             }
         }
+
         done = !more;
 
-        if more {
-            if eof {
-                datasize = frounds / ROUNDS * BLOCKSIZE;
-                for i in &mut data[0..datasize as usize] {
-                    *i = 0
-                }
-                x7 = x7 ^ u32x4::new(0, 1, 0, 0);
-                more = false;
-            } else {
-                datasize = input.read(&mut data).unwrap() as i32;
-                if datasize < BUFSIZE {
-                    let padsize = BLOCKSIZE - datasize % BLOCKSIZE;
-                    for i in &mut data[datasize as usize..(datasize + padsize) as usize] {
-                        *i = 0
-                    }
-                    data[datasize as usize] = 0x80;
-                    datasize += padsize;
-                    eof = true;
-                }
-            }
-        }
     }
 
     let mut out = GenericArray::default();
@@ -143,8 +145,8 @@ pub fn cubehash(input: &mut Stdin, revision: i32, hashlen: i32) -> Output {
         } else {
             0
         } {
-            3 => return _cubehash(input, 16, 32, hashlen),
-            2 => return _cubehash(input, 160, 160, hashlen),
+            3 => return _cubehash(input, 16, 32, hashlen, CUBEHASH_3_IV),
+            2 => return _cubehash(input, 160, 160, hashlen, CUBEHASH_2_IV),
             _ => return GenericArray::default(),
         };
     }
