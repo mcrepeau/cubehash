@@ -36,5 +36,3 @@ while IFS=, read -r path rev hashlen expected; do
   fi
 done < "$MANIFEST"
 exit $fail
-
-

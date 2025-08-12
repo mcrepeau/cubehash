@@ -1,31 +1,31 @@
 use std::io::Read;
-#[cfg(all(target_arch = "x86", target_feature = "sse2", not(target_feature = "avx2")))]
+#[cfg(all(target_arch = "x86", target_feature = "sse2", not(target_feature = "avx2"), not(feature = "force-scalar")))]
 use core::arch::x86::{
     __m128i, _mm_set_epi32, _mm_xor_si128, _mm_loadu_si128, _mm_add_epi32, _mm_shuffle_epi32, _mm_slli_epi32, _mm_srli_epi32,
 };
-#[cfg(all(target_arch = "x86_64", not(target_feature = "avx2")))]
+#[cfg(all(target_arch = "x86_64", not(target_feature = "avx2"), not(feature = "force-scalar")))]
 use core::arch::x86_64::{
     __m128i, _mm_set_epi32, _mm_xor_si128, _mm_loadu_si128, _mm_add_epi32, _mm_shuffle_epi32, _mm_slli_epi32, _mm_srli_epi32,
 };
 // AVX2 intrinsics (x86 and x86_64)
-#[cfg(all(target_arch = "x86", target_feature = "avx2"))]
+#[cfg(all(target_arch = "x86", target_feature = "avx2", not(feature = "force-scalar")))]
 use core::arch::x86::{
     __m128i, __m256i, _mm_set_epi32, _mm_setzero_si128, _mm256_add_epi32, _mm256_castsi128_si256, _mm256_castsi256_si128,
     _mm256_extracti128_si256, _mm256_inserti128_si256, _mm256_loadu_si256, _mm256_permute2x128_si256,
     _mm256_setzero_si256, _mm256_shuffle_epi32, _mm256_slli_epi32, _mm256_srli_epi32, _mm256_xor_si256,
 };
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2", not(feature = "force-scalar")))]
 use core::arch::x86_64::{
     __m128i, __m256i, _mm_set_epi32, _mm_setzero_si128, _mm256_add_epi32, _mm256_castsi128_si256, _mm256_castsi256_si128,
     _mm256_extracti128_si256, _mm256_inserti128_si256, _mm256_loadu_si256, _mm256_permute2x128_si256,
     _mm256_setzero_si256, _mm256_shuffle_epi32, _mm256_slli_epi32, _mm256_srli_epi32, _mm256_xor_si256,
 };
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_arch = "aarch64", not(feature = "force-scalar")))]
 use core::arch::aarch64::{
     uint32x4_t, vaddq_u32, vdupq_n_u32, vextq_u32, vld1q_u32, vrev64q_u32, vshlq_n_u32, vshrq_n_u32,
     veorq_u32, vst1q_u32,
 };
-#[cfg(not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")))]
+#[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))))]
 use crate::u32x4::{add, xor, U32x4};
 
 const BUFSIZE: i32 = 65536;
@@ -34,7 +34,7 @@ const BLOCKSIZE: i32 = 32;
 const MAXHASHLEN: i32 = 512;
 
 // AVX2 implementation (preferred on x86/x86_64 when available)
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2", not(feature = "force-scalar")))]
 pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
     let mut done = false;
     let mut eof = false;
@@ -140,10 +140,10 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
 }
 
 // SSE2/SSE implementation (x86/x86_64) when AVX2 is not available
-#[cfg(any(
+#[cfg(all(any(
     all(target_arch = "x86", target_feature = "sse2", not(target_feature = "avx2")),
     all(target_arch = "x86_64", not(target_feature = "avx2"))
-))]
+), not(feature = "force-scalar")))]
 pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
     //eprintln!("Hashing using CubeHash{}+16/32+{}-{}...", irounds, frounds, hashlen);
     
@@ -244,7 +244,7 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
     return [x0_buffer, x1_buffer, x2_buffer, x3_buffer].concat()
 }
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_arch = "aarch64", not(feature = "force-scalar")))]
 pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
     let mut done = false;
     let mut eof = false;
@@ -377,7 +377,7 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
     out
 }
 
-#[cfg(any(not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")), all(target_arch = "x86", not(target_feature = "sse2"))))]
+#[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")), all(target_arch = "x86", not(target_feature = "sse2"))))]
 pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
     //eprintln!("Hashing using CubeHash{}+16/32+{}-{}...", irounds, frounds, hashlen);
     
