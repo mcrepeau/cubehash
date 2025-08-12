@@ -1,11 +1,24 @@
 use std::io::Read;
-#[cfg(all(target_arch = "x86", target_feature = "sse2"))]
+#[cfg(all(target_arch = "x86", target_feature = "sse2", not(target_feature = "avx2")))]
 use core::arch::x86::{
-    __m128i, _mm_set_epi32, _mm_xor_si128, _mm_loadu_si128, _mm_add_epi32, _mm_shuffle_epi32, _mm_slli_epi32, _mm_srli_epi32
+    __m128i, _mm_set_epi32, _mm_xor_si128, _mm_loadu_si128, _mm_add_epi32, _mm_shuffle_epi32, _mm_slli_epi32, _mm_srli_epi32,
 };
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", not(target_feature = "avx2")))]
 use core::arch::x86_64::{
-    __m128i, _mm_set_epi32, _mm_xor_si128, _mm_loadu_si128, _mm_add_epi32, _mm_shuffle_epi32, _mm_slli_epi32, _mm_srli_epi32
+    __m128i, _mm_set_epi32, _mm_xor_si128, _mm_loadu_si128, _mm_add_epi32, _mm_shuffle_epi32, _mm_slli_epi32, _mm_srli_epi32,
+};
+// AVX2 intrinsics (x86 and x86_64)
+#[cfg(all(target_arch = "x86", target_feature = "avx2"))]
+use core::arch::x86::{
+    __m128i, __m256i, _mm_set_epi32, _mm_setzero_si128, _mm256_add_epi32, _mm256_castsi128_si256, _mm256_castsi256_si128,
+    _mm256_extracti128_si256, _mm256_inserti128_si256, _mm256_loadu_si256, _mm256_permute2x128_si256,
+    _mm256_setzero_si256, _mm256_shuffle_epi32, _mm256_slli_epi32, _mm256_srli_epi32, _mm256_xor_si256,
+};
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+use core::arch::x86_64::{
+    __m128i, __m256i, _mm_set_epi32, _mm_setzero_si128, _mm256_add_epi32, _mm256_castsi128_si256, _mm256_castsi256_si128,
+    _mm256_extracti128_si256, _mm256_inserti128_si256, _mm256_loadu_si256, _mm256_permute2x128_si256,
+    _mm256_setzero_si256, _mm256_shuffle_epi32, _mm256_slli_epi32, _mm256_srli_epi32, _mm256_xor_si256,
 };
 #[cfg(target_arch = "aarch64")]
 use core::arch::aarch64::{
@@ -20,7 +33,117 @@ const ROUNDS: i32 = 16;
 const BLOCKSIZE: i32 = 32;
 const MAXHASHLEN: i32 = 512;
 
-#[cfg(any(all(target_arch = "x86", target_feature = "sse2"), target_arch = "x86_64"))]
+// AVX2 implementation (preferred on x86/x86_64 when available)
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"))]
+pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
+    let mut done = false;
+    let mut eof = false;
+    let mut more = true;
+    let mut data: [u8; BUFSIZE as usize] = [0; BUFSIZE as usize];
+
+    // State packed as pairs: v01=[x0|x1], v23=[x2|x3], v45=[x4|x5], v67=[x6|x7]
+    let low_init: __m128i = _mm_set_epi32(0, ROUNDS, BLOCKSIZE, hashlen / 8);
+    let zero128: __m128i = _mm_setzero_si128();
+    let mut v01: __m256i = _mm256_castsi128_si256(low_init);
+    v01 = _mm256_inserti128_si256(v01, zero128, 1);
+    let mut v23: __m256i = _mm256_setzero_si256();
+    let mut v45: __m256i = _mm256_setzero_si256();
+    let mut v67: __m256i = _mm256_setzero_si256();
+
+    let mut datasize = irounds / ROUNDS * BLOCKSIZE;
+
+    while !done {
+        let mut pos: *const u8 = &data[0] as *const u8;
+        let end: *const u8 = &data[(datasize - 1) as usize] as *const u8;
+
+        while pos < end {
+            // Absorb 32-byte block into x0|x1
+            let block = _mm256_loadu_si256(pos as *const __m256i);
+            v01 = _mm256_xor_si256(v01, block);
+            pos = pos.add(32);
+
+            for _ in 0..ROUNDS {
+                // x4 = x0 + permute_badc(x4); x5 = x1 + permute_badc(x5)
+                let sh_v45 = _mm256_shuffle_epi32(v45, 0xb1);
+                v45 = _mm256_add_epi32(v01, sh_v45);
+                // x6 = x2 + permute_badc(x6); x7 = x3 + permute_badc(x7)
+                let sh_v67 = _mm256_shuffle_epi32(v67, 0xb1);
+                v67 = _mm256_add_epi32(v23, sh_v67);
+
+                // Rotate by 7 across 32-bit lanes and swap roles: x0..x3 from y2..y1
+                let t01 = v01;
+                let t23 = v23;
+                let rot_t23 = _mm256_xor_si256(_mm256_slli_epi32(t23, 7), _mm256_srli_epi32(t23, 25));
+                let rot_t01 = _mm256_xor_si256(_mm256_slli_epi32(t01, 7), _mm256_srli_epi32(t01, 25));
+                v01 = rot_t23;
+                v23 = rot_t01;
+
+                // x0 ^= x4; x1 ^= x5; x2 ^= x6; x3 ^= x7
+                v01 = _mm256_xor_si256(v01, v45);
+                v23 = _mm256_xor_si256(v23, v67);
+
+                // x4 = x0 + permute_cdab(x4); x5 = x1 + permute_cdab(x5)
+                let sh2_v45 = _mm256_shuffle_epi32(v45, 0x4e);
+                v45 = _mm256_add_epi32(v01, sh2_v45);
+                // x6 = x2 + permute_cdab(x6); x7 = x3 + permute_cdab(x7)
+                let sh2_v67 = _mm256_shuffle_epi32(v67, 0x4e);
+                v67 = _mm256_add_epi32(v23, sh2_v67);
+
+                // Rotate by 11 and swap halves within each pair (x0<->x1, x2<->x3)
+                let r01 = _mm256_xor_si256(_mm256_slli_epi32(v01, 11), _mm256_srli_epi32(v01, 21));
+                let r23 = _mm256_xor_si256(_mm256_slli_epi32(v23, 11), _mm256_srli_epi32(v23, 21));
+                v01 = _mm256_permute2x128_si256(r01, r01, 0x01);
+                v23 = _mm256_permute2x128_si256(r23, r23, 0x01);
+
+                // Final XORs in the round
+                v01 = _mm256_xor_si256(v01, v45);
+                v23 = _mm256_xor_si256(v23, v67);
+            }
+        }
+        done = !more;
+
+        if more {
+            if eof {
+                datasize = frounds / ROUNDS * BLOCKSIZE;
+                for i in &mut data[0..datasize as usize] { *i = 0 }
+                // x7 ^= [0,1,0,0] in upper 128-bits of v67
+                let one_mask: __m128i = _mm_set_epi32(0, 1, 0, 0);
+                let mut flag = _mm256_castsi128_si256(_mm_setzero_si128());
+                flag = _mm256_inserti128_si256(flag, one_mask, 1);
+                v67 = _mm256_xor_si256(v67, flag);
+                more = false;
+            } else {
+                datasize = input.read(&mut data).unwrap() as i32;
+                if datasize < BUFSIZE {
+                    let padsize = BLOCKSIZE - datasize % BLOCKSIZE;
+                    for i in &mut data[datasize as usize..(datasize + padsize) as usize] { *i = 0 }
+                    data[datasize as usize] = 0x80;
+                    datasize += padsize;
+                    eof = true;
+                }
+            }
+        }
+    }
+
+    // Extract x0..x3 and output
+    let x0: __m128i = _mm256_castsi256_si128(v01);
+    let x1: __m128i = _mm256_extracti128_si256(v01, 1);
+    let x2: __m128i = _mm256_castsi256_si128(v23);
+    let x3: __m128i = _mm256_extracti128_si256(v23, 1);
+
+    let x0_buffer = std::mem::transmute::<__m128i, [u8; 16]>(x0);
+    let x1_buffer = std::mem::transmute::<__m128i, [u8; 16]>(x1);
+    let x2_buffer = std::mem::transmute::<__m128i, [u8; 16]>(x2);
+    let x3_buffer = std::mem::transmute::<__m128i, [u8; 16]>(x3);
+
+    [x0_buffer, x1_buffer, x2_buffer, x3_buffer].concat()
+}
+
+// SSE2/SSE implementation (x86/x86_64) when AVX2 is not available
+#[cfg(any(
+    all(target_arch = "x86", target_feature = "sse2", not(target_feature = "avx2")),
+    all(target_arch = "x86_64", not(target_feature = "avx2"))
+))]
 pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
     //eprintln!("Hashing using CubeHash{}+16/32+{}-{}...", irounds, frounds, hashlen);
     
