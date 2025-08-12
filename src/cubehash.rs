@@ -65,15 +65,17 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
     let mut datasize = irounds / ROUNDS * BLOCKSIZE;
 
     while !done {
-        let mut pos: *const __m128i = &data[0 as usize] as *const _ as *const __m128i;
-        let end: *const __m128i = &data[(datasize - 1) as usize] as *const _ as *const __m128i;
+        let mut pos: i32 = 0;
+        let end: i32 = datasize;
 
-        while pos < end {
-            x0 = _mm_xor_si128(x0, _mm_loadu_si128(pos));
-            pos = pos.add(1);
+        while pos + 31 < end {
+            let p0 = &data[pos as usize] as *const u8 as *const __m128i;
+            x0 = _mm_xor_si128(x0, _mm_loadu_si128(p0));
 
-            x1 = _mm_xor_si128(x1, _mm_loadu_si128(pos));
-            pos = pos.add(1);
+            let p1 = &data[(pos + 16) as usize] as *const u8 as *const __m128i;
+            x1 = _mm_xor_si128(x1, _mm_loadu_si128(p1));
+
+            pos += 32;
             
             for _i in 0..ROUNDS {
                 x4 = _mm_add_epi32(x0, _mm_shuffle_epi32(x4, 0xb1));
@@ -197,9 +199,9 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
 
     while !done {
         let mut pos: i32 = 0;
-        let end: i32 = datasize - 1;
+        let end: i32 = datasize;
 
-        while pos < end {
+        while pos + 31 < end {
             x0 = veorq_u32(x0, load_le_u32x4_reversed(&data[pos as usize..(pos + 16) as usize]));
             pos += 16;
 
@@ -300,9 +302,9 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
 
     while !done {
         let mut pos = 0;
-        let end = datasize - 1;
+        let end = datasize;
 
-        while pos < end {
+        while pos + 31 < end {
             x0 = xor(x0, U32x4::load(&data[pos as usize..(pos + 16) as usize]));
             pos += 16;
 
@@ -370,7 +372,7 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
 }
 
 // AVX2 backend: process x0|x1, x2|x3, x4|x5, x6|x7 in 256-bit vectors
-#[cfg(any(all(target_arch = "x86", target_feature = "avx2"), all(target_arch = "x86_64", target_feature = "avx2")))]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[target_feature(enable = "avx2")]
 unsafe fn _cubehash_avx2<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
     let mut done = false;
@@ -462,7 +464,7 @@ unsafe fn _cubehash_avx2<R: Read>(input: &mut R, irounds: i32, frounds: i32, has
 }
 
 // ARMv7 (arm32) NEON backend with runtime detection
-#[cfg(all(target_arch = "arm", target_feature = "neon"))]
+#[cfg(target_arch = "arm")]
 #[target_feature(enable = "neon")]
 unsafe fn _cubehash_neon32<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
     let mut done = false;
@@ -520,9 +522,9 @@ unsafe fn _cubehash_neon32<R: Read>(input: &mut R, irounds: i32, frounds: i32, h
 
     while !done {
         let mut pos: i32 = 0;
-        let end: i32 = datasize - 1;
+        let end: i32 = datasize;
 
-        while pos < end {
+        while pos + 31 < end {
             x0 = veorq_u32_arm(x0, load_le_u32x4_reversed_arm(&data[pos as usize..(pos + 16) as usize]));
             pos += 16;
 

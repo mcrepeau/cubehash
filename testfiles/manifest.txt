@@ -1,0 +1,5 @@
+# path,revision,hashlen,expected_hex
+testfiles/1M.file,2,256,c1edd11bf7302de75fe90d4cc0787a2d996f337651a060bede7c0228d7a605ae
+testfiles/1M.file,3,256,7a5e0d39da620fb6252f207672f60620a2c42aca92649673f8ee37a3b3eae8d5
+testfiles/100M.file,2,256,34e6e0b4abb41a38917d426798953f36b0da50da08550ad47724f75b4608cf1c
+testfiles/100M.file,3,256,affef0b3898c34fa20acc06ddc45795b331a8fd021a2f5d274b7af7a243168cd
