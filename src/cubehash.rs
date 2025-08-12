@@ -7,18 +7,6 @@ use core::arch::x86::{
 use core::arch::x86_64::{
     __m128i, _mm_set_epi32, _mm_xor_si128, _mm_loadu_si128, _mm_add_epi32, _mm_shuffle_epi32, _mm_slli_epi32, _mm_srli_epi32
 };
-#[cfg(all(target_arch = "x86", target_feature = "avx2"))]
-use core::arch::x86::{
-    __m256i, _mm256_add_epi32, _mm256_castsi256_si128, _mm256_castsi128_si256, _mm256_extracti128_si256,
-    _mm256_inserti128_si256, _mm256_loadu_si256, _mm256_setzero_si256, _mm256_shuffle_epi32, _mm256_slli_epi32,
-    _mm256_srli_epi32, _mm256_xor_si256,
-};
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
-use core::arch::x86_64::{
-    __m256i, _mm256_add_epi32, _mm256_castsi256_si128, _mm256_castsi128_si256, _mm256_extracti128_si256,
-    _mm256_inserti128_si256, _mm256_loadu_si256, _mm256_setzero_si256, _mm256_shuffle_epi32, _mm256_slli_epi32,
-    _mm256_srli_epi32, _mm256_xor_si256,
-};
 #[cfg(target_arch = "aarch64")]
 use core::arch::aarch64::{
     uint32x4_t, vaddq_u32, vdupq_n_u32, vextq_u32, vld1q_u32, vrev64q_u32, vshlq_n_u32, vshrq_n_u32,
@@ -362,119 +350,11 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
     return [x0.transmute(), x1.transmute(), x2.transmute(), x3.transmute()].concat()
 }
 
-// AVX2 backend: process x0|x1, x2|x3, x4|x5, x6|x7 in 256-bit vectors
-#[cfg(any(all(target_arch = "x86", target_feature = "avx2"), all(target_arch = "x86_64", target_feature = "avx2")))]
-#[target_feature(enable = "avx2")]
-unsafe fn _cubehash_avx2<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
-    let mut done = false;
-    let mut eof = false;
-    let mut more = true;
-    let mut data: [u8; BUFSIZE as usize] = [0; BUFSIZE as usize];
-
-    let x0_init: __m128i = _mm_set_epi32(0, ROUNDS, BLOCKSIZE, hashlen / 8);
-    let zero128: __m128i = _mm_set_epi32(0, 0, 0, 0);
-    let mut v01: __m256i = _mm256_castsi128_si256(x0_init);
-    v01 = _mm256_inserti128_si256(v01, zero128, 1);
-    let mut v23: __m256i = _mm256_setzero_si256();
-    let mut v45: __m256i = _mm256_setzero_si256();
-    let mut v67: __m256i = _mm256_setzero_si256();
-
-    let mut datasize = irounds / ROUNDS * BLOCKSIZE;
-
-    while !done {
-        let mut pos: i32 = 0;
-        let end: i32 = datasize;
-
-        while pos + 31 < end {
-            let p = &data[pos as usize] as *const u8 as *const __m256i;
-            let block = _mm256_loadu_si256(p);
-            v01 = _mm256_xor_si256(v01, block);
-            pos += 32;
-
-            for _ in 0..ROUNDS {
-                // x4..x7 update with badc permutation
-                v45 = _mm256_add_epi32(v01, _mm256_shuffle_epi32(v45, 0xb1));
-                v67 = _mm256_add_epi32(v23, _mm256_shuffle_epi32(v67, 0xb1));
-
-                // y assignment and rotations
-                let y01 = v23; // y0|y1
-                let y23 = v01; // y2|y3
-                let r01 = _mm256_xor_si256(_mm256_slli_epi32(y01, 7), _mm256_srli_epi32(y01, 25));
-                let r23 = _mm256_xor_si256(_mm256_slli_epi32(y23, 7), _mm256_srli_epi32(y23, 25));
-                v01 = _mm256_xor_si256(r01, v45);
-                v23 = _mm256_xor_si256(r23, v67);
-
-                // second mix with cdab permutation
-                v45 = _mm256_add_epi32(v01, _mm256_shuffle_epi32(v45, 0x4e));
-                v67 = _mm256_add_epi32(v23, _mm256_shuffle_epi32(v67, 0x4e));
-
-                let y01b = v01; // y0|y1
-                let y23b = v23; // y2|y3
-                let r01b = _mm256_xor_si256(_mm256_slli_epi32(y01b, 11), _mm256_srli_epi32(y01b, 21));
-                let r23b = _mm256_xor_si256(_mm256_slli_epi32(y23b, 11), _mm256_srli_epi32(y23b, 21));
-                v01 = _mm256_xor_si256(r01b, v45);
-                v23 = _mm256_xor_si256(r23b, v67);
-            }
-        }
-        done = !more;
-
-        if more {
-            if eof {
-                datasize = frounds / ROUNDS * BLOCKSIZE;
-                for i in &mut data[0..datasize as usize] { *i = 0 }
-                // flip bit in x7 (upper lane of v67)
-                let mask_hi: __m128i = _mm_set_epi32(0, 1, 0, 0);
-                let mut mask: __m256i = _mm256_castsi128_si256(zero128);
-                mask = _mm256_inserti128_si256(mask, mask_hi, 1);
-                v67 = _mm256_xor_si256(v67, mask);
-                more = false;
-            } else {
-                datasize = input.read(&mut data).unwrap() as i32;
-                if datasize < BUFSIZE {
-                    let padsize = BLOCKSIZE - datasize % BLOCKSIZE;
-                    for i in &mut data[datasize as usize..(datasize + padsize) as usize] { *i = 0 }
-                    data[datasize as usize] = 0x80;
-                    datasize += padsize;
-                    eof = true;
-                }
-            }
-        }
-    }
-
-    // Extract x0,x1 from v01 and x2,x3 from v23
-    let x0 = _mm256_castsi256_si128(v01);
-    let x1 = _mm256_extracti128_si256(v01, 1);
-    let x2 = _mm256_castsi256_si128(v23);
-    let x3 = _mm256_extracti128_si256(v23, 1);
-
-    let x0b = std::mem::transmute::<__m128i, [u8; 16]>(x0);
-    let x1b = std::mem::transmute::<__m128i, [u8; 16]>(x1);
-    let x2b = std::mem::transmute::<__m128i, [u8; 16]>(x2);
-    let x3b = std::mem::transmute::<__m128i, [u8; 16]>(x3);
-    [x0b, x1b, x2b, x3b].concat()
-}
-
 pub fn cubehash<R: Read>(input: &mut R, revision: i32, hashlen: i32) -> Vec<u8> {
     unsafe {
         match if hashlen <= MAXHASHLEN && hashlen % 8 == 0 { revision }  else  { 0 } {
-            3 => {
-                #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-                {
-                    if std::arch::is_x86_feature_detected!("avx2") {
-                        return _cubehash_avx2(input, 16, 32, hashlen);
-                    }
-                }
-                return _cubehash(input, 16, 32, hashlen);
-            },
-            2 => {
-                #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-                {
-                    if std::arch::is_x86_feature_detected!("avx2") {
-                        return _cubehash_avx2(input, 160, 160, hashlen);
-                    }
-                }
-                return _cubehash(input, 160, 160, hashlen);
-            },
+            3 => return _cubehash(input, 16, 32, hashlen),
+            2 => return _cubehash(input, 160, 160, hashlen),
             _ => return Vec::new(),
         };
     }
