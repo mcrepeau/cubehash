@@ -6,6 +6,10 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+name = "cubehash"
+path = "src/lib.rs"
+
 [profile.release]
 opt-level = 3
 lto = true
@@ -13,3 +17,10 @@ codegen-units = 1
 panic = "abort"
 debug = false
 incremental = false
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "hash_bench"
+harness = false
