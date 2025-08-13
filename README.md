@@ -65,10 +65,8 @@ Options:
 
 ### Benchmarks
 
-Benchmarks are powered by Criterion.
-
-- Run all benches: `cargo bench`
-- Optional helper: `./benchmark.sh` (generates sizes and runs benches)
+- Run all benches with Criterion: `cargo bench`
+- Bash script timing the hashing of testfiles: `./benchmark.sh`
 
 There is also a manifest-based verification script used in CI to hash test files
 and compare against expected outputs:
@@ -76,13 +74,6 @@ and compare against expected outputs:
 ```bash
 bash scripts/verify_manifest.sh  # reads testfiles/manifest.txt
 ```
-
-### Publishing (maintainers)
-
-1. Update version in `Cargo.toml` and tag: `git tag vX.Y.Z && git push --tags`
-2. Login once: `cargo login <CRATES_IO_TOKEN>`
-3. Dry-run: `cargo publish --dry-run`
-4. Publish: `cargo publish`
 
 ### References
 
