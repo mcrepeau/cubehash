@@ -7,7 +7,6 @@ use core::arch::x86::{
 use core::arch::x86_64::{
     __m128i, _mm_set_epi32, _mm_xor_si128, _mm_loadu_si128, _mm_add_epi32, _mm_shuffle_epi32, _mm_slli_epi32, _mm_srli_epi32,
 };
-// AVX2 intrinsics (x86 and x86_64)
 #[cfg(all(target_arch = "x86", target_feature = "avx2", not(feature = "force-scalar")))]
 use core::arch::x86::{
     __m128i, __m256i, _mm_set_epi32, _mm_setzero_si128, _mm256_add_epi32, _mm256_castsi128_si256, _mm256_castsi256_si128,
@@ -27,6 +26,8 @@ use core::arch::aarch64::{
 };
 #[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))))]
 use crate::u32x4::{add, xor, U32x4};
+
+/// Core CubeHash implementation used by both the CLI and the library wrappers.
 
 const BUFSIZE: i32 = 65536;
 const ROUNDS: i32 = 16;
@@ -145,8 +146,6 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
     all(target_arch = "x86_64", not(target_feature = "avx2"))
 ), not(feature = "force-scalar")))]
 pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
-    //eprintln!("Hashing using CubeHash{}+16/32+{}-{}...", irounds, frounds, hashlen);
-    
     let mut done = false;
     let mut eof = false;
     let mut more = true;
@@ -476,9 +475,15 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
 pub fn cubehash<R: Read>(input: &mut R, revision: i32, hashlen: i32) -> Vec<u8> {
     unsafe {
         match if hashlen <= MAXHASHLEN && hashlen % 8 == 0 { revision }  else  { 0 } {
-            3 => return _cubehash(input, 16, 32, hashlen),
-            2 => return _cubehash(input, 160, 160, hashlen),
-            _ => return Vec::new(),
-        };
+            3 => {
+                let result = _cubehash(input, 16, 32, hashlen);
+                result[..(hashlen / 8) as usize].to_vec()
+            },
+            2 => {
+                let result = _cubehash(input, 160, 160, hashlen);
+                result[..(hashlen / 8) as usize].to_vec()
+            },
+            _ => Vec::new(),
+        }
     }
 }
