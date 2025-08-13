@@ -1,4 +1,5 @@
 use std::io::Read;
+/// Core CubeHash implementation used by both the CLI and the library wrappers.
 #[cfg(all(target_arch = "x86", target_feature = "sse2", not(target_feature = "avx2"), not(feature = "force-scalar")))]
 use core::arch::x86::{
     __m128i, _mm_set_epi32, _mm_xor_si128, _mm_loadu_si128, _mm_add_epi32, _mm_shuffle_epi32, _mm_slli_epi32, _mm_srli_epi32,
@@ -7,7 +8,6 @@ use core::arch::x86::{
 use core::arch::x86_64::{
     __m128i, _mm_set_epi32, _mm_xor_si128, _mm_loadu_si128, _mm_add_epi32, _mm_shuffle_epi32, _mm_slli_epi32, _mm_srli_epi32,
 };
-// AVX2 intrinsics (x86 and x86_64)
 #[cfg(all(target_arch = "x86", target_feature = "avx2", not(feature = "force-scalar")))]
 use core::arch::x86::{
     __m128i, __m256i, _mm_set_epi32, _mm_setzero_si128, _mm256_add_epi32, _mm256_castsi128_si256, _mm256_castsi256_si128,

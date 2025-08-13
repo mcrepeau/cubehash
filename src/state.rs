@@ -1,5 +1,9 @@
 use crate::cubehash::_cubehash as core_cubehash;
 
+/// Parameters for a CubeHash instance.
+///
+/// - `revision`: CubeHash revision to use (2 or 3).
+/// - `hash_len_bits`: output length in bits (8..=512, multiple of 8).
 #[derive(Clone, Copy, Debug)]
 pub struct CubeHashParams {
     pub revision: i32,       // 2 or 3
@@ -10,6 +14,10 @@ impl Default for CubeHashParams {
     fn default() -> Self { Self { revision: 3, hash_len_bits: 256 } }
 }
 
+/// Incremental CubeHash hasher.
+///
+/// This type buffers input via `update` and computes the digest on `finalize`.
+/// It uses the optimized core under the hood and supports both revisions.
 pub struct CubeHash {
     params: CubeHashParams,
     buffer: Vec<u8>,
@@ -17,15 +25,19 @@ pub struct CubeHash {
 }
 
 impl CubeHash {
+    /// Create a new hasher with the given parameters.
     pub fn new(params: CubeHashParams) -> Self {
         Self { params, buffer: Vec::new(), finished: false }
     }
 
+    /// Feed additional data into the hasher.
     pub fn update(&mut self, data: &[u8]) {
         assert!(!self.finished, "Cannot update after finalize");
         self.buffer.extend_from_slice(data);
     }
 
+    /// Finalize the computation and return the digest as a byte vector.
+    /// The length of the vector is `hash_len_bits / 8`.
     pub fn finalize(mut self) -> Vec<u8> {
         self.finished = true;
         let mut cursor = std::io::Cursor::new(&self.buffer);
@@ -39,56 +51,70 @@ impl CubeHash {
         }
     }
 
+    /// Reset the hasher, discarding any buffered data.
     pub fn reset(&mut self) {
         self.buffer.clear();
         self.finished = false;
     }
 }
 
+/// CubeHash16+16/32+32–256 (rev3) fixed-size hasher.
 pub struct CubeHash256(CubeHash);
+/// CubeHash16+16/32+32–384 (rev3) fixed-size hasher.
 pub struct CubeHash384(CubeHash);
+/// CubeHash16+16/32+32–512 (rev3) fixed-size hasher.
 pub struct CubeHash512(CubeHash);
 
 impl CubeHash256 {
+    /// Construct a new CubeHash256 (rev3).
     pub fn new() -> Self {
         Self(CubeHash::new(CubeHashParams { revision: 3, hash_len_bits: 256 }))
     }
+    /// Feed additional data.
     pub fn update(&mut self, data: &[u8]) { self.0.update(data); }
+    /// Finalize and return a 32-byte array.
     pub fn finalize(self) -> [u8; 32] {
         let out = self.0.finalize();
         let mut arr = [0u8; 32];
         arr.copy_from_slice(&out[..32]);
         arr
     }
+    /// Reset the internal state.
     pub fn reset(&mut self) { self.0.reset(); }
 }
 
 impl CubeHash384 {
+    /// Construct a new CubeHash384 (rev3).
     pub fn new() -> Self {
         Self(CubeHash::new(CubeHashParams { revision: 3, hash_len_bits: 384 }))
     }
+    /// Feed additional data.
     pub fn update(&mut self, data: &[u8]) { self.0.update(data); }
+    /// Finalize and return a 48-byte array.
     pub fn finalize(self) -> [u8; 48] {
         let out = self.0.finalize();
         let mut arr = [0u8; 48];
         arr.copy_from_slice(&out[..48]);
         arr
     }
+    /// Reset the internal state.
     pub fn reset(&mut self) { self.0.reset(); }
 }
 
 impl CubeHash512 {
+    /// Construct a new CubeHash512 (rev3).
     pub fn new() -> Self {
         Self(CubeHash::new(CubeHashParams { revision: 3, hash_len_bits: 512 }))
     }
+    /// Feed additional data.
     pub fn update(&mut self, data: &[u8]) { self.0.update(data); }
+    /// Finalize and return a 64-byte array.
     pub fn finalize(self) -> [u8; 64] {
         let out = self.0.finalize();
         let mut arr = [0u8; 64];
         arr.copy_from_slice(&out[..64]);
         arr
     }
+    /// Reset the internal state.
     pub fn reset(&mut self) { self.0.reset(); }
 }
-
-
