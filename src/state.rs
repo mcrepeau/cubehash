@@ -41,14 +41,15 @@ impl CubeHash {
     pub fn finalize(mut self) -> Vec<u8> {
         self.finished = true;
         let mut cursor = std::io::Cursor::new(&self.buffer);
-        unsafe {
+        let result = unsafe {
             core_cubehash(
                 &mut cursor,
                 if self.params.revision == 3 { 16 } else { 160 },
                 if self.params.revision == 3 { 32 } else { 160 },
                 self.params.hash_len_bits,
             )
-        }
+        };
+        result[..(self.params.hash_len_bits / 8) as usize].to_vec()
     }
 
     /// Reset the hasher, discarding any buffered data.
