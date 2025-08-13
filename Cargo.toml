@@ -1,10 +1,25 @@
 [package]
 name = "cubehash"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Matthieu Crépeau <matthieu.crepeau@ibm.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "CubeHash (rev2/rev3) hashing with SIMD acceleration and portable fallback"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/mcrepeau/cubehash"
+homepage = "https://github.com/mcrepeau/cubehash"
+documentation = "https://docs.rs/cubehash"
+keywords = ["hash", "cubehash", "crypto", "simd"]
+categories = ["cryptography", "algorithms"]
+include = [
+  "Cargo.toml",
+  "README.md",
+  "LICENSE*",
+  "src/lib.rs",
+  "src/state.rs",
+  "src/cubehash.rs",
+  "src/u32x4.rs",
+]
 
 [lib]
 name = "cubehash"
@@ -28,3 +43,6 @@ criterion = "0.5"
 [[bench]]
 name = "hash_bench"
 harness = false
+
+[package.metadata.docs.rs]
+all-features = true
