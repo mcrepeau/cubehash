@@ -1,7 +1,6 @@
 #[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))))]
 mod scalar_backend {
     use crate::{Backend, BLOCKSIZE, ROUNDS, CubeHashParams, rounds_for_rev};
-    use std::convert::TryInto;
 
     #[derive(Clone, Copy)]
     struct U32x4 { a: u32, b: u32, c: u32, d: u32 }
@@ -26,25 +25,43 @@ mod scalar_backend {
         }
     }
 
+    #[inline]
+    fn as_u32_le(array: &[u8]) -> u32 {
+        ((array[0] as u32) <<  0) +
+        ((array[1] as u32) <<  8) +
+        ((array[2] as u32) << 16) +
+        ((array[3] as u32) << 24)
+    }
+
     impl U32x4 {
-        #[inline] fn shift_left(self, n: u32) -> Self { U32x4 { a: self.a << n, b: self.b << n, c: self.c << n, d: self.d << n } }
-        #[inline] fn shift_right(self, n: u32) -> Self { U32x4 { a: self.a >> n, b: self.b >> n, c: self.c >> n, d: self.d >> n } }
-        #[inline] fn permute_badc(self) -> Self { U32x4 { a: self.b, b: self.a, c: self.d, d: self.c } }
-        #[inline] fn permute_cdab(self) -> Self { U32x4 { a: self.c, b: self.d, c: self.a, d: self.b } }
-        #[inline] fn load(bytes: &[u8]) -> Self {
-            let a = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
-            let b = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
-            let c = u32::from_le_bytes(bytes[8..12].try_into().unwrap());
-            let d = u32::from_le_bytes(bytes[12..16].try_into().unwrap());
-            U32x4 { a, b, c, d }
+        #[inline]
+        pub fn load(data: &[u8]) -> U32x4 {
+            U32x4 { a: as_u32_le(&data[12..16]), b: as_u32_le(&data[8..12]), c: as_u32_le(&data[4..8]), d: as_u32_le(&data[0..4]) }
         }
-        #[inline] fn to_bytes(self) -> [u8; 16] {
-            let mut out = [0u8; 16];
-            out[0..4].copy_from_slice(&self.a.to_le_bytes());
-            out[4..8].copy_from_slice(&self.b.to_le_bytes());
-            out[8..12].copy_from_slice(&self.c.to_le_bytes());
-            out[12..16].copy_from_slice(&self.d.to_le_bytes());
-            out
+
+        #[inline]
+        pub fn permute_badc(self) -> U32x4 {
+            U32x4 { a: self.b, b: self.a, c: self.d, d: self.c }
+        }
+
+        #[inline]
+        pub fn permute_cdab(self) -> U32x4 {
+            U32x4 { a: self.c, b: self.d, c: self.a, d: self.b }
+        }
+
+        #[inline]
+        pub fn shift_left(self, mask: u32) -> U32x4 {
+            U32x4 { a: self.a.wrapping_shl(mask), b: self.b.wrapping_shl(mask), c: self.c.wrapping_shl(mask), d: self.d.wrapping_shl(mask) }
+        }
+
+        #[inline]
+        pub fn shift_right(self, mask: u32) -> U32x4 {
+            U32x4 { a: self.a.wrapping_shr(mask), b: self.b.wrapping_shr(mask), c: self.c.wrapping_shr(mask), d: self.d.wrapping_shr(mask) }
+        }
+        
+        #[inline]
+        pub fn transmute(self) -> Vec<u8> {
+            [self.d.to_le_bytes(), self.c.to_le_bytes(), self.b.to_le_bytes(), self.a.to_le_bytes()].concat()
         }
     }
 
@@ -127,10 +144,10 @@ mod scalar_backend {
 
         fn output_full(&self) -> [u8; 64] {
             let mut out = [0u8; 64];
-            out[0..16].copy_from_slice(&self.x0.to_bytes());
-            out[16..32].copy_from_slice(&self.x1.to_bytes());
-            out[32..48].copy_from_slice(&self.x2.to_bytes());
-            out[48..64].copy_from_slice(&self.x3.to_bytes());
+            out[0..16].copy_from_slice(&self.x0.transmute());
+            out[16..32].copy_from_slice(&self.x1.transmute());
+            out[32..48].copy_from_slice(&self.x2.transmute());
+            out[48..64].copy_from_slice(&self.x3.transmute());
             out
         }
     }
