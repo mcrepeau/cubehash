@@ -1,6 +1,7 @@
 #[cfg(all(target_arch = "aarch64", not(feature = "force-scalar")))]
-pub mod neon {
+pub mod neon_backend {
     use crate::{Backend, BLOCKSIZE, ROUNDS, CubeHashParams, rounds_for_rev};
+    use std::convert::TryInto;
     use core::arch::aarch64::*;
 
     #[inline(always)]
