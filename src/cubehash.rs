@@ -376,33 +376,10 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
 
 #[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")), all(target_arch = "x86", not(target_feature = "sse2"))))]
 pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
-    // Match your constants/semantics exactly
-    const BUFSIZE: i32 = 1024;
-    const ROUNDS: i32 = 16;
-    const BLOCKSIZE: i32 = 32;
-
     #[derive(Clone, Copy)]
     struct U32x4 { a: u32, b: u32, c: u32, d: u32 }
 
-    #[inline(always)]
-    fn as_u32_le(array: &[u8]) -> u32 {
-        ((array[0] as u32) <<  0) |
-        ((array[1] as u32) <<  8) |
-        ((array[2] as u32) << 16) |
-        ((array[3] as u32) << 24)
-    }
-
     impl U32x4 {
-        #[inline(always)]
-        fn load(data: &[u8]) -> U32x4 {
-            // same lane order as your U32x4::load()
-            U32x4 {
-                a: as_u32_le(&data[12..16]),
-                b: as_u32_le(&data[8..12]),
-                c: as_u32_le(&data[4..8]),
-                d: as_u32_le(&data[0..4]),
-            }
-        }
         #[inline(always)] fn permute_badc(self) -> U32x4 { U32x4 { a:self.b, b:self.a, c:self.d, d:self.c } }
         #[inline(always)] fn permute_cdab(self) -> U32x4 { U32x4 { a:self.c, b:self.d, c:self.a, d:self.b } }
         #[inline(always)] fn shift_left(self, n: u32) -> U32x4 {
@@ -433,6 +410,18 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
     }
 
     #[inline(always)]
+    unsafe fn load_ptr(p: *const u8) -> U32x4 {
+        let w0 = core::ptr::read_unaligned(p as *const u32);
+        let w1 = core::ptr::read_unaligned(p.add(4) as *const u32);
+        let w2 = core::ptr::read_unaligned(p.add(8) as *const u32);
+        let w3 = core::ptr::read_unaligned(p.add(12) as *const u32);
+        #[cfg(target_endian = "little")]
+        { U32x4 { a: w3, b: w2, c: w1, d: w0 } }
+        #[cfg(target_endian = "big")]
+        { U32x4 { a: u32::from_le(w3), b: u32::from_le(w2), c: u32::from_le(w1), d: u32::from_le(w0) } }
+    }
+
+    #[inline(always)]
     fn add(v: U32x4, w: U32x4) -> U32x4 {
         U32x4 {
             a: v.a.wrapping_add(w.a),
@@ -446,7 +435,6 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
         U32x4 { a: v.a ^ w.a, b: v.b ^ w.b, c: v.c ^ w.c, d: v.d ^ w.d }
     }
 
-    // --- state (matches your init) ---
     let mut x0 = U32x4 { a: 0, b: ROUNDS as u32, c: BLOCKSIZE as u32, d: (hashlen / 8) as u32 };
     let mut x1 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
     let mut x2 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
@@ -472,15 +460,15 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
     let mut datasize: i32 = (irounds / ROUNDS) * BLOCKSIZE;
 
     while !done {
-        let mut pos: i32 = 0;
-        let end: i32 = datasize - 1;
+        let mut pos: *const u8 = &data[0] as *const u8;
+        let end: *const u8 = &data[(datasize - 1) as usize] as *const u8;
 
         // process in 32-byte blocks: XOR m0 into x0, m1 into x1, then do ROUNDS
         while pos < end {
-            x0 = xor(x0, U32x4::load(&data[pos as usize .. (pos + 16) as usize]));
-            pos += 16;
-            x1 = xor(x1, U32x4::load(&data[pos as usize .. (pos + 16) as usize]));
-            pos += 16;
+            x0 = xor(x0, load_ptr(pos));
+            pos = pos.add(16);
+            x1 = xor(x1, load_ptr(pos));
+            pos = pos.add(16);
 
             for _ in 0..ROUNDS {
                 x4 = add(x0, x4.permute_badc());
@@ -524,7 +512,7 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
             if eof {
                 // schedule finalization rounds: frounds/ROUNDS blocks of zeros; set finalize flag
                 datasize = (frounds / ROUNDS) * BLOCKSIZE;
-                for b in &mut data[0 .. datasize as usize] { *b = 0; }
+                data[0 .. datasize as usize].fill(0);
                 x7 = xor(x7, U32x4 { a: 0, b: 1, c: 0, d: 0 });
                 more = false;
             } else {
@@ -532,7 +520,7 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
                 datasize = input.read(&mut data).unwrap() as i32;
                 if datasize < BUFSIZE {
                     let padsize = BLOCKSIZE - (datasize % BLOCKSIZE);
-                    for b in &mut data[datasize as usize .. (datasize + padsize) as usize] { *b = 0; }
+                    data[datasize as usize .. (datasize + padsize) as usize].fill(0);
                     data[datasize as usize] = 0x80;
                     datasize += padsize;
                     eof = true;
