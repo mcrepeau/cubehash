@@ -376,6 +376,22 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
 
 #[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")), all(target_arch = "x86", not(target_feature = "sse2"))))]
 pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
+    // Helper function to generate output from the four state chunks
+    #[inline(always)]
+    fn generate_output(x0: U32x4, x1: U32x4, x2: U32x4, x3: U32x4, hashlen: i32) -> Vec<u8> {
+        let outlen = (hashlen / 8) as usize;
+        let mut out = vec![0u8; outlen];
+        let mut off = 0usize;
+
+        for bytes in [x0.to_bytes(), x1.to_bytes(), x2.to_bytes(), x3.to_bytes()].iter() {
+            let n = core::cmp::min(16, outlen - off);
+            out[off .. off + n].copy_from_slice(&bytes[..n]);
+            off += n;
+            if off >= outlen { break; }
+        }
+        out
+    }
+
     #[derive(Clone, Copy)]
     struct U32x4 { a: u32, b: u32, c: u32, d: u32 }
 
@@ -529,18 +545,7 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
         }
     }
 
-    // produce exactly hashlen/8 bytes in the same word order as your transmute()
-    let outlen = (hashlen / 8) as usize;
-    let mut out = vec![0u8; outlen];
-    let mut off = 0usize;
-
-    for bytes in [x0.to_bytes(), x1.to_bytes(), x2.to_bytes(), x3.to_bytes()].iter() {
-        let n = core::cmp::min(16, outlen - off);
-        out[off .. off + n].copy_from_slice(&bytes[..n]);
-        off += n;
-        if off >= outlen { break; }
-    }
-    out
+    generate_output(x0, x1, x2, x3, hashlen)
 }
 
 pub fn cubehash<R: Read>(input: &mut R, revision: i32, hashlen: i32) -> Vec<u8> {
