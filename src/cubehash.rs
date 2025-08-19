@@ -376,22 +376,6 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
 
 #[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")), all(target_arch = "x86", not(target_feature = "sse2"))))]
 pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
-    // Helper function to generate output from the four state chunks
-    #[inline(always)]
-    fn generate_output(x0: U32x4, x1: U32x4, x2: U32x4, x3: U32x4, hashlen: i32) -> Vec<u8> {
-        let outlen = (hashlen / 8) as usize;
-        let mut out = vec![0u8; outlen];
-        let mut off = 0usize;
-
-        for bytes in [x0.to_bytes(), x1.to_bytes(), x2.to_bytes(), x3.to_bytes()].iter() {
-            let n = core::cmp::min(16, outlen - off);
-            out[off .. off + n].copy_from_slice(&bytes[..n]);
-            off += n;
-            if off >= outlen { break; }
-        }
-        out
-    }
-
     #[derive(Clone, Copy)]
     struct U32x4 { a: u32, b: u32, c: u32, d: u32 }
 
@@ -423,19 +407,23 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
             out[12..16].copy_from_slice(&self.a.to_le_bytes());
             out
         }
+        
+        #[inline(always)]
+        fn load_ptr(p: *const u8) -> U32x4 {
+            // Use slice indexing for safety, but optimize the byte loading
+            let slice = unsafe { std::slice::from_raw_parts(p, 16) };
+            
+            // Use little-endian loading directly for better performance
+            let w0 = u32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]]);
+            let w1 = u32::from_le_bytes([slice[4], slice[5], slice[6], slice[7]]);
+            let w2 = u32::from_le_bytes([slice[8], slice[9], slice[10], slice[11]]);
+            let w3 = u32::from_le_bytes([slice[12], slice[13], slice[14], slice[15]]);
+            
+            U32x4 { a: w3, b: w2, c: w1, d: w0 }
+        }
     }
 
-    #[inline(always)]
-    unsafe fn load_ptr(p: *const u8) -> U32x4 {
-        let w0 = core::ptr::read_unaligned(p as *const u32);
-        let w1 = core::ptr::read_unaligned(p.add(4) as *const u32);
-        let w2 = core::ptr::read_unaligned(p.add(8) as *const u32);
-        let w3 = core::ptr::read_unaligned(p.add(12) as *const u32);
-        #[cfg(target_endian = "little")]
-        { U32x4 { a: w3, b: w2, c: w1, d: w0 } }
-        #[cfg(target_endian = "big")]
-        { U32x4 { a: u32::from_le(w3), b: u32::from_le(w2), c: u32::from_le(w1), d: u32::from_le(w0) } }
-    }
+
 
     #[inline(always)]
     fn add(v: U32x4, w: U32x4) -> U32x4 {
@@ -446,6 +434,7 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
             d: v.d.wrapping_add(w.d),
         }
     }
+    
     #[inline(always)]
     fn xor(v: U32x4, w: U32x4) -> U32x4 {
         U32x4 { a: v.a ^ w.a, b: v.b ^ w.b, c: v.c ^ w.c, d: v.d ^ w.d }
@@ -481,9 +470,9 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
 
         // process in 32-byte blocks: XOR m0 into x0, m1 into x1, then do ROUNDS
         while pos < end {
-            x0 = xor(x0, load_ptr(pos));
+            x0 = xor(x0, U32x4::load_ptr(pos));
             pos = pos.add(16);
-            x1 = xor(x1, load_ptr(pos));
+            x1 = xor(x1, U32x4::load_ptr(pos));
             pos = pos.add(16);
 
             for _ in 0..ROUNDS {
@@ -545,7 +534,7 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
         }
     }
 
-    generate_output(x0, x1, x2, x3, hashlen)
+    [x0.to_bytes().to_vec(), x1.to_bytes().to_vec(), x2.to_bytes().to_vec(), x3.to_bytes().to_vec()].concat()
 }
 
 pub fn cubehash<R: Read>(input: &mut R, revision: i32, hashlen: i32) -> Vec<u8> {
