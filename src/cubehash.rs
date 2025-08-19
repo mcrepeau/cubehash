@@ -114,8 +114,8 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
             } else {
                 datasize = input.read(&mut data).unwrap() as i32;
                 if datasize < BUFSIZE {
-                    let padsize = BLOCKSIZE - datasize % BLOCKSIZE;
-                    for i in &mut data[datasize as usize..(datasize + padsize) as usize] { *i = 0 }
+                    let padsize = BLOCKSIZE - (datasize % BLOCKSIZE);
+                    data[datasize as usize .. (datasize + padsize) as usize].fill(0);
                     data[datasize as usize] = 0x80;
                     datasize += padsize;
                     eof = true;
@@ -223,8 +223,8 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
             } else {
                 datasize = input.read(&mut data).unwrap() as i32;
                 if datasize < BUFSIZE {
-                    let padsize = BLOCKSIZE - datasize % BLOCKSIZE;
-                    for i in &mut data[datasize as usize..(datasize + padsize) as usize] { *i = 0 }
+                    let padsize = BLOCKSIZE - (datasize % BLOCKSIZE);
+                    data[datasize as usize .. (datasize + padsize) as usize].fill(0);
                     data[datasize as usize] = 0x80;
                     datasize += padsize;
                     eof = true;
@@ -354,8 +354,8 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
             } else {
                 datasize = input.read(&mut data).unwrap() as i32;
                 if datasize < BUFSIZE {
-                    let padsize = BLOCKSIZE - datasize % BLOCKSIZE;
-                    for i in &mut data[datasize as usize..(datasize + padsize) as usize] { *i = 0 }
+                    let padsize = BLOCKSIZE - (datasize % BLOCKSIZE);
+                    data[datasize as usize .. (datasize + padsize) as usize].fill(0);
                     data[datasize as usize] = 0x80;
                     datasize += padsize;
                     eof = true;
