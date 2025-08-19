@@ -1,5 +1,4 @@
 use std::io::Read;
-use std::convert::TryInto;
 #[cfg(all(target_arch = "x86", target_feature = "sse2", not(target_feature = "avx2"), not(feature = "force-scalar")))]
 use core::arch::x86::{
     __m128i, _mm_set_epi32, _mm_xor_si128, _mm_loadu_si128, _mm_add_epi32, _mm_shuffle_epi32, _mm_slli_epi32, _mm_srli_epi32,
@@ -400,7 +399,6 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
             }
         }
         #[inline(always)] fn to_bytes(self) -> [u8;16] {
-            // same layout as your transmute()
             let mut out = [0u8; 16];
             out[0..4].copy_from_slice(&self.d.to_le_bytes());
             out[4..8].copy_from_slice(&self.c.to_le_bytes());
@@ -409,19 +407,15 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
             out
         }
         
-        #[inline(always)]
-        fn load_bytes(bytes: [u8; 16]) -> U32x4 {
-            // Use little-endian loading directly for better performance
-            let w0 = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
-            let w1 = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
-            let w2 = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
-            let w3 = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]);
+        #[inline(always)] fn load_bytes(data: &[u8], offset: usize) -> U32x4 {
+            let w0 = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            let w1 = u32::from_le_bytes([data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7]]);
+            let w2 = u32::from_le_bytes([data[offset + 8], data[offset + 9], data[offset + 10], data[offset + 11]]);
+            let w3 = u32::from_le_bytes([data[offset + 12], data[offset + 13], data[offset + 14], data[offset + 15]]);
             
             U32x4 { a: w3, b: w2, c: w1, d: w0 }
         }
     }
-
-
 
     #[inline(always)]
     fn add(v: U32x4, w: U32x4) -> U32x4 {
@@ -454,23 +448,18 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
 
     let mut data: [u8; BUFSIZE as usize] = [0; BUFSIZE as usize];
 
-    // control flags identical to your reference
     let mut done = false;
     let mut eof = false;
     let mut more = true;
 
-    // exactly like your reference: drive rounds count by "datasize" in bytes
     let mut datasize: i32 = (irounds / ROUNDS) * BLOCKSIZE;
 
     while !done {
         // process in 32-byte blocks: XOR m0 into x0, m1 into x1, then do ROUNDS
         let mut offset = 0usize;
         while offset + 31 < datasize as usize {
-            let block0: [u8; 16] = data[offset..offset + 16].try_into().unwrap();
-            let block1: [u8; 16] = data[offset + 16..offset + 32].try_into().unwrap();
-            
-            x0 = xor(x0, U32x4::load_bytes(block0));
-            x1 = xor(x1, U32x4::load_bytes(block1));
+            x0 = xor(x0, U32x4::load_bytes(&data, offset));
+            x1 = xor(x1, U32x4::load_bytes(&data, offset + 16));
             
             offset += 32;
 
@@ -509,12 +498,10 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
             }
         }
 
-        // identical control flow
         done = !more;
 
         if more {
             if eof {
-                // schedule finalization rounds: frounds/ROUNDS blocks of zeros; set finalize flag
                 datasize = (frounds / ROUNDS) * BLOCKSIZE;
                 data[0 .. datasize as usize].fill(0);
                 x7 = xor(x7, U32x4 { a: 0, b: 1, c: 0, d: 0 });
