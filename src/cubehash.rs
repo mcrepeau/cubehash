@@ -1,4 +1,5 @@
 use std::io::Read;
+use std::convert::TryInto;
 #[cfg(all(target_arch = "x86", target_feature = "sse2", not(target_feature = "avx2"), not(feature = "force-scalar")))]
 use core::arch::x86::{
     __m128i, _mm_set_epi32, _mm_xor_si128, _mm_loadu_si128, _mm_add_epi32, _mm_shuffle_epi32, _mm_slli_epi32, _mm_srli_epi32,
@@ -409,15 +410,12 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
         }
         
         #[inline(always)]
-        fn load_ptr(p: *const u8) -> U32x4 {
-            // Use slice indexing for safety, but optimize the byte loading
-            let slice = unsafe { std::slice::from_raw_parts(p, 16) };
-            
+        fn load_bytes(bytes: [u8; 16]) -> U32x4 {
             // Use little-endian loading directly for better performance
-            let w0 = u32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]]);
-            let w1 = u32::from_le_bytes([slice[4], slice[5], slice[6], slice[7]]);
-            let w2 = u32::from_le_bytes([slice[8], slice[9], slice[10], slice[11]]);
-            let w3 = u32::from_le_bytes([slice[12], slice[13], slice[14], slice[15]]);
+            let w0 = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+            let w1 = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+            let w2 = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
+            let w3 = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]);
             
             U32x4 { a: w3, b: w2, c: w1, d: w0 }
         }
@@ -465,15 +463,16 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
     let mut datasize: i32 = (irounds / ROUNDS) * BLOCKSIZE;
 
     while !done {
-        let mut pos: *const u8 = &data[0] as *const u8;
-        let end: *const u8 = &data[(datasize - 1) as usize] as *const u8;
-
         // process in 32-byte blocks: XOR m0 into x0, m1 into x1, then do ROUNDS
-        while pos < end {
-            x0 = xor(x0, U32x4::load_ptr(pos));
-            pos = pos.add(16);
-            x1 = xor(x1, U32x4::load_ptr(pos));
-            pos = pos.add(16);
+        let mut offset = 0usize;
+        while offset + 31 < datasize as usize {
+            let block0: [u8; 16] = data[offset..offset + 16].try_into().unwrap();
+            let block1: [u8; 16] = data[offset + 16..offset + 32].try_into().unwrap();
+            
+            x0 = xor(x0, U32x4::load_bytes(block0));
+            x1 = xor(x1, U32x4::load_bytes(block1));
+            
+            offset += 32;
 
             for _ in 0..ROUNDS {
                 x4 = add(x0, x4.permute_badc());
