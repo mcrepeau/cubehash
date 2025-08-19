@@ -377,69 +377,88 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
 #[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")), all(target_arch = "x86", not(target_feature = "sse2"))))]
 pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
     #[derive(Clone, Copy)]
-    struct U32x4 { a: u32, b: u32, c: u32, d: u32 }
+    struct U32x4([u32; 4]);
 
     impl U32x4 {
-        #[inline(always)] fn permute_badc(self) -> U32x4 { U32x4 { a:self.b, b:self.a, c:self.d, d:self.c } }
-        #[inline(always)] fn permute_cdab(self) -> U32x4 { U32x4 { a:self.c, b:self.d, c:self.a, d:self.b } }
-        #[inline(always)] fn shift_left(self, n: u32) -> U32x4 {
-            U32x4 {
-                a: self.a.wrapping_shl(n),
-                b: self.b.wrapping_shl(n),
-                c: self.c.wrapping_shl(n),
-                d: self.d.wrapping_shl(n),
-            }
+        #[inline(always)] 
+        fn new(a: u32, b: u32, c: u32, d: u32) -> Self {
+            U32x4([a, b, c, d]) // Note: reversed order to match your current logic
         }
-        #[inline(always)] fn shift_right(self, n: u32) -> U32x4 {
-            U32x4 {
-                a: self.a.wrapping_shr(n),
-                b: self.b.wrapping_shr(n),
-                c: self.c.wrapping_shr(n),
-                d: self.d.wrapping_shr(n),
-            }
+        
+        #[inline(always)] 
+        fn permute_badc(self) -> U32x4 { 
+            U32x4([self.0[1], self.0[0], self.0[3], self.0[2]]) 
         }
-        #[inline(always)] fn to_bytes(self) -> [u8;16] {
+        
+        #[inline(always)] 
+        fn permute_cdab(self) -> U32x4 { 
+            U32x4([self.0[2], self.0[3], self.0[0], self.0[1]]) 
+        }
+        
+        #[inline(always)] 
+        fn shift_left(self, n: u32) -> U32x4 {
+            U32x4([
+                self.0[0].wrapping_shl(n),
+                self.0[1].wrapping_shl(n),
+                self.0[2].wrapping_shl(n),
+                self.0[3].wrapping_shl(n),
+            ])
+        }
+        
+        #[inline(always)] 
+        fn shift_right(self, n: u32) -> U32x4 {
+            U32x4([
+                self.0[0].wrapping_shr(n),
+                self.0[1].wrapping_shr(n),
+                self.0[2].wrapping_shr(n),
+                self.0[3].wrapping_shr(n),
+            ])
+        }
+        
+        #[inline(always)] 
+        fn to_bytes(self) -> [u8;16] {
             let mut out = [0u8; 16];
-            out[0..4].copy_from_slice(&self.d.to_le_bytes());
-            out[4..8].copy_from_slice(&self.c.to_le_bytes());
-            out[8..12].copy_from_slice(&self.b.to_le_bytes());
-            out[12..16].copy_from_slice(&self.a.to_le_bytes());
+            out[0..4].copy_from_slice(&self.0[3].to_le_bytes());
+            out[4..8].copy_from_slice(&self.0[2].to_le_bytes());
+            out[8..12].copy_from_slice(&self.0[1].to_le_bytes());
+            out[12..16].copy_from_slice(&self.0[0].to_le_bytes());
             out
         }
         
-        #[inline(always)] fn load_bytes(data: &[u8], offset: usize) -> U32x4 {
+        #[inline(always)] 
+        fn load_bytes(data: &[u8], offset: usize) -> U32x4 {
             let w0 = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
             let w1 = u32::from_le_bytes([data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7]]);
             let w2 = u32::from_le_bytes([data[offset + 8], data[offset + 9], data[offset + 10], data[offset + 11]]);
             let w3 = u32::from_le_bytes([data[offset + 12], data[offset + 13], data[offset + 14], data[offset + 15]]);
             
-            U32x4 { a: w3, b: w2, c: w1, d: w0 }
+            U32x4([w3, w2, w1, w0])
         }
     }
 
     #[inline(always)]
     fn add(v: U32x4, w: U32x4) -> U32x4 {
-        U32x4 {
-            a: v.a.wrapping_add(w.a),
-            b: v.b.wrapping_add(w.b),
-            c: v.c.wrapping_add(w.c),
-            d: v.d.wrapping_add(w.d),
-        }
+        U32x4([
+            v.0[0].wrapping_add(w.0[0]),
+            v.0[1].wrapping_add(w.0[1]),
+            v.0[2].wrapping_add(w.0[2]),
+            v.0[3].wrapping_add(w.0[3]),
+        ])
     }
     
     #[inline(always)]
     fn xor(v: U32x4, w: U32x4) -> U32x4 {
-        U32x4 { a: v.a ^ w.a, b: v.b ^ w.b, c: v.c ^ w.c, d: v.d ^ w.d }
+        U32x4([v.0[0] ^ w.0[0], v.0[1] ^ w.0[1], v.0[2] ^ w.0[2], v.0[3] ^ w.0[3]])
     }
 
-    let mut x0 = U32x4 { a: 0, b: ROUNDS as u32, c: BLOCKSIZE as u32, d: (hashlen / 8) as u32 };
-    let mut x1 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
-    let mut x2 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
-    let mut x3 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
-    let mut x4 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
-    let mut x5 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
-    let mut x6 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
-    let mut x7 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
+    let mut x0 = U32x4::new(0, ROUNDS as u32, BLOCKSIZE as u32, (hashlen / 8) as u32);
+    let mut x1 = U32x4::new(0, 0, 0, 0);
+    let mut x2 = U32x4::new(0, 0, 0, 0);
+    let mut x3 = U32x4::new(0, 0, 0, 0);
+    let mut x4 = U32x4::new(0, 0, 0, 0);
+    let mut x5 = U32x4::new(0, 0, 0, 0);
+    let mut x6 = U32x4::new(0, 0, 0, 0);
+    let mut x7 = U32x4::new(0, 0, 0, 0);
 
     let mut y0: U32x4;
     let mut y1: U32x4;
@@ -504,7 +523,7 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
             if eof {
                 datasize = (frounds / ROUNDS) * BLOCKSIZE;
                 data[0 .. datasize as usize].fill(0);
-                x7 = xor(x7, U32x4 { a: 0, b: 1, c: 0, d: 0 });
+                x7 = xor(x7, U32x4::new(0, 1, 0, 0));
                 more = false;
             } else {
                 // read next chunk and do padding if this is the last read (< BUFSIZE)
