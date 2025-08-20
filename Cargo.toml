@@ -1,8 +1,8 @@
 [package]
 name = "cubehash"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Matthieu Crépeau <matthieu.crepeau@outlook.com>"]
-edition = "2018"
+edition = "2021"
 description = "CubeHash (rev2/rev3) hashing with SIMD acceleration and portable fallback"
 license = "MIT"
 readme = "README.md"
