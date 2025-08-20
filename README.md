@@ -14,54 +14,60 @@ Dennis Mitchell (`https://github.com/DennisMitchell/cubehash`).
 ### Library usage
 
 Add to your `Cargo.toml`:
-
-```toml
-[dependencies]
-cubehash = "0.2"
 ```
-
-Incremental API with fixed-size wrappers:
-
-```rust
+[dependencies]
+cubehash = "0.3"
+# optionally force the portable (non-SIMD) backend:
+# cubehash = { version = "0.3", features = ["force-scalar"] }
+```
+Incremental API with fixed-size wrappers (choose revision 2 or 3):
+```
 use cubehash::{CubeHash256, CubeHash384, CubeHash512};
 
-let mut h256 = CubeHash256::new();
+let mut h256 = CubeHash256::new(3); // revision 3
 h256.update(b"hello");
 h256.update(b" world");
-let digest_32 = h256.finalize(); // [u8; 32]
+let digest_32: [u8; 32] = h256.finalize();
 
-let mut h384 = CubeHash384::new();
+let mut h384 = CubeHash384::new(3);
 h384.update(b"data");
-let digest_48 = h384.finalize(); // [u8; 48]
+let digest_48: [u8; 48] = h384.finalize();
 
-let mut h512 = CubeHash512::new();
+let mut h512 = CubeHash512::new(2); // revision 2
 h512.update(b"data");
-let digest_64 = h512.finalize(); // [u8; 64]
+let digest_64: [u8; 64] = h512.finalize();
 ```
+Generic streaming API with explicit parameters (auto-selects the best backend):
+```
+rust
+use cubehash::{CubeHashParams};
+use cubehash::cubehash::{CubeHashBest}
 
-Generic API with explicit parameters:
-
-```rust
-use cubehash::{CubeHash, CubeHashParams};
-
-let mut h = CubeHash::new(CubeHashParams { revision: 3, hash_len_bits: 256 });
+let mut h = CubeHashBest::new(CubeHashParams { revision: 3, hash_len_bits: 256 });
 h.update(b"stream ");
 h.update(b"data");
-let digest = h.finalize(); // Vec<u8> length = hash_len_bits / 8
+let digest: Vec<u8> = h.finalize(); // length = hash_len_bits / 8
 ```
 
 ### CLI usage
 
 Build and run the CLI:
-
-```bash
+```
 cargo build --release
 ./target/release/cubehash -3 -l 256 < file
 ```
-
+Hash a string directly:
+```
+./target/release/cubehash -3 -l 256 "hello world"
+```
+Or via stdin:
+```
+echo -n "hello world" | ./target/release/cubehash -3 -l 256
+```
 Options:
 - `-2` / `-3`: select revision 2 or 3 (default rev3)
 - `-l HASHLEN`: output length in bits (8..=512, multiple of 8)
+- `-h`: show help
 
 ### Benchmarks
 
@@ -70,10 +76,7 @@ Options:
 
 There is also a manifest-based verification script used in CI to hash test files
 and compare against expected outputs:
-
-```bash
-bash scripts/verify_manifest.sh  # reads testfiles/manifest.txt
-```
+`./scripts/verify_manifest.sh`
 
 ### References
 
