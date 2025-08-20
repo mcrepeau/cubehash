@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput, BatchSize};
-use cubehash::{new_hasher, CubeHashParams};
+use cubehash::{CubeHashBest, CubeHashParams};
 
 fn bench_sizes(c: &mut Criterion) {
     let mut group = c.benchmark_group("cubehash_sizes");
@@ -28,7 +28,7 @@ fn bench_sizes(c: &mut Criterion) {
                     },
                     |buf| {
                         // Hash the buffer
-                        let mut hasher = new_hasher(params);
+                        let mut hasher = CubeHashBest::new(params);
                         hasher.update(&buf);
                         let _ = hasher.finalize();
                     },

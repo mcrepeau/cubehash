@@ -1,8 +1,7 @@
-use cubehash::CubeHashParams;
-use cubehash::cubehash::{CubeHashBest, CubeHash256, CubeHash384, CubeHash512};
+use cubehash::{CubeHashParams, CubeHashBest, CubeHash256, CubeHash384, CubeHash512};
 
 fn cubehash_bytes(data: &[u8], revision: i32, hash_bits: i32) -> Vec<u8> {
-    let mut hasher = CubeHashBest::new((CubeHashParams { revision, hash_len_bits: hash_bits }));
+    let mut hasher = CubeHashBest::new(CubeHashParams { revision, hash_len_bits: hash_bits });
     hasher.update(data);
     hasher.finalize().to_vec()
 }

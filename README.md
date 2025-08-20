@@ -39,9 +39,7 @@ let digest_64: [u8; 64] = h512.finalize();
 ```
 Generic streaming API with explicit parameters (auto-selects the best backend):
 ```
-rust
-use cubehash::{CubeHashParams};
-use cubehash::cubehash::{CubeHashBest}
+use cubehash::{CubeHashBest, CubeHashParams};
 
 let mut h = CubeHashBest::new(CubeHashParams { revision: 3, hash_len_bits: 256 });
 h.update(b"stream ");
