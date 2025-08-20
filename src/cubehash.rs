@@ -382,7 +382,7 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
     impl U32x4 {
         #[inline(always)] 
         fn new(a: u32, b: u32, c: u32, d: u32) -> Self {
-            U32x4([a, b, c, d]) // Note: reversed order to match your current logic
+            U32x4([a, b, c, d])
         }
         
         #[inline(always)] 
@@ -393,26 +393,6 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
         #[inline(always)] 
         fn permute_cdab(self) -> U32x4 { 
             U32x4([self.0[2], self.0[3], self.0[0], self.0[1]]) 
-        }
-        
-        #[inline(always)] 
-        fn shift_left(self, n: u32) -> U32x4 {
-            U32x4([
-                self.0[0].wrapping_shl(n),
-                self.0[1].wrapping_shl(n),
-                self.0[2].wrapping_shl(n),
-                self.0[3].wrapping_shl(n),
-            ])
-        }
-        
-        #[inline(always)] 
-        fn shift_right(self, n: u32) -> U32x4 {
-            U32x4([
-                self.0[0].wrapping_shr(n),
-                self.0[1].wrapping_shr(n),
-                self.0[2].wrapping_shr(n),
-                self.0[3].wrapping_shr(n),
-            ])
         }
         
         #[inline(always)] 
@@ -451,6 +431,18 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
         U32x4([v.0[0] ^ w.0[0], v.0[1] ^ w.0[1], v.0[2] ^ w.0[2], v.0[3] ^ w.0[3]])
     }
 
+    #[inline(always)]
+    fn shlxor(v: U32x4, n: u32) -> U32x4 {
+        let [a,b,c,d] = v.0;
+        U32x4([
+            (a.wrapping_shl(n)) ^ (a.wrapping_shr(32 - n)),
+            (b.wrapping_shl(n)) ^ (b.wrapping_shr(32 - n)),
+            (c.wrapping_shl(n)) ^ (c.wrapping_shr(32 - n)),
+            (d.wrapping_shl(n)) ^ (d.wrapping_shr(32 - n)),
+        ])
+    }
+
+
     let mut x0 = U32x4::new(0, ROUNDS as u32, BLOCKSIZE as u32, (hashlen / 8) as u32);
     let mut x1 = U32x4::new(0, 0, 0, 0);
     let mut x2 = U32x4::new(0, 0, 0, 0);
@@ -459,11 +451,6 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
     let mut x5 = U32x4::new(0, 0, 0, 0);
     let mut x6 = U32x4::new(0, 0, 0, 0);
     let mut x7 = U32x4::new(0, 0, 0, 0);
-
-    let mut y0: U32x4;
-    let mut y1: U32x4;
-    let mut y2: U32x4;
-    let mut y3: U32x4;
 
     let mut data: [u8; BUFSIZE as usize] = [0; BUFSIZE as usize];
 
@@ -488,32 +475,31 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
                 x6 = add(x2, x6.permute_badc());
                 x7 = add(x3, x7.permute_badc());
 
-                y0 = x2; y1 = x3; y2 = x0; y3 = x1;
-                x0 = xor(y0.shift_left(7),  y0.shift_right(25));
-                x1 = xor(y1.shift_left(7),  y1.shift_right(25));
-                x2 = xor(y2.shift_left(7),  y2.shift_right(25));
-                x3 = xor(y3.shift_left(7),  y3.shift_right(25));
+                let t0 = shlxor(x2, 7);
+                let t1 = shlxor(x3, 7);
+                let t2 = shlxor(x0, 7);
+                let t3 = shlxor(x1, 7);
 
-                x0 = xor(x0, x4);
-                x1 = xor(x1, x5);
-                x2 = xor(x2, x6);
-                x3 = xor(x3, x7);
+                x0 = xor(t0, x4);
+                x1 = xor(t1, x5);
+                x2 = xor(t2, x6);
+                x3 = xor(t3, x7);
 
                 x4 = add(x0, x4.permute_cdab());
                 x5 = add(x1, x5.permute_cdab());
                 x6 = add(x2, x6.permute_cdab());
                 x7 = add(x3, x7.permute_cdab());
 
-                y0 = x1; y1 = x0; y2 = x3; y3 = x2;
-                x0 = xor(y0.shift_left(11), y0.shift_right(21));
-                x1 = xor(y1.shift_left(11), y1.shift_right(21));
-                x2 = xor(y2.shift_left(11), y2.shift_right(21));
-                x3 = xor(y3.shift_left(11), y3.shift_right(21));
+                let u0 = shlxor(x1, 11);
+                let u1 = shlxor(x0, 11);
+                let u2 = shlxor(x3, 11);
+                let u3 = shlxor(x2, 11);
 
-                x0 = xor(x0, x4);
-                x1 = xor(x1, x5);
-                x2 = xor(x2, x6);
-                x3 = xor(x3, x7);
+                x0 = xor(u0, x4);
+                x1 = xor(u1, x5);
+                x2 = xor(u2, x6);
+                x3 = xor(u3, x7);
+
             }
         }
 
