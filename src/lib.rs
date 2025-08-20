@@ -3,7 +3,8 @@ mod scalar;
 mod sse2;
 mod avx2;
 mod neon;
-pub use cubehash::new_hasher;
+
+pub use cubehash::{CubeHashAuto, CubeHashBest, CubeHash256, CubeHash384, CubeHash512};
 
 use std::cmp;
 
@@ -99,6 +100,7 @@ impl<B: Backend> CubeHash<B> {
         }
     }
 
+    #[inline]
     pub fn finalize(mut self) -> Vec<u8> {
         // padding: 0x80 then zeros to block boundary
         self.block[self.used] = 0x80;

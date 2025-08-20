@@ -1,6 +1,6 @@
 use std::io::{self, Read};
 use std::env;
-use cubehash::{new_hasher, CubeHashParams};
+use cubehash::{CubeHashBest, CubeHashParams};
 
 fn help() {
     println!("Usage: cubehash [OPTIONS] [STRING]");
@@ -58,7 +58,7 @@ fn main() {
     }
 
     let params = CubeHashParams { revision, hash_len_bits: hashlen };
-    let mut hasher = new_hasher(params);
+    let mut hasher = CubeHashBest::new(params);
 
     if let Some(input) = string_input {
         // Hash the provided string directly

@@ -1,7 +1,8 @@
-use cubehash::{cubehash, CubeHashParams, CubeHash256, CubeHash384, CubeHash512, new_hasher};
+use cubehash::CubeHashParams;
+use cubehash::cubehash::{CubeHashBest, CubeHash256, CubeHash384, CubeHash512};
 
 fn cubehash_bytes(data: &[u8], revision: i32, hash_bits: i32) -> Vec<u8> {
-    let mut hasher = new_hasher(CubeHashParams { revision, hash_len_bits: hash_bits });
+    let mut hasher = CubeHashBest::new((CubeHashParams { revision, hash_len_bits: hash_bits }));
     hasher.update(data);
     hasher.finalize().to_vec()
 }
@@ -44,7 +45,7 @@ fn generic_vs_streaming_consistency() {
     for &data in inputs {
         for &(revision, bits) in &[(3, 256), (3, 384), (3, 512), (2, 256)] {
             let expected = cubehash_bytes(data, revision, bits);
-            let mut h = new_hasher(CubeHashParams { revision, hash_len_bits: bits });
+            let mut h = CubeHashBest::new(CubeHashParams { revision, hash_len_bits: bits });
             h.update(data);
             let got = h.finalize();
             assert_eq!(got, expected, "rev={}, bits={}", revision, bits);
@@ -59,7 +60,7 @@ fn streaming_multi_update_matches_single_update() {
 
     for &(revision, bits) in &[(3, 256), (2, 256)] {
         let expected = cubehash_bytes(&all, revision, bits);
-        let mut h = new_hasher(CubeHashParams { revision, hash_len_bits: bits });
+        let mut h = CubeHashBest::new(CubeHashParams { revision, hash_len_bits: bits });
         for &c in chunks { h.update(c); }
         let got = h.finalize();
         assert_eq!(got, expected, "rev={}, bits={}", revision, bits);

@@ -3,21 +3,14 @@ pub use crate::{CubeHash, CubeHashParams};
 
 // ---- Backend auto-selection type alias ----
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2", not(feature = "force-scalar")))]
-type CubeHashBest = CubeHash<crate::avx2::AVX2>;
-
+pub type CubeHashBest = CubeHash<crate::avx2::AVX2>;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(target_feature = "avx2"), not(feature = "force-scalar")))]
-type CubeHashBest = CubeHash<crate::sse2::SSE2>;
-
+pub type CubeHashBest = CubeHash<crate::sse2::SSE2>;
 #[cfg(all(target_arch = "aarch64", not(feature = "force-scalar")))]
-type CubeHashBest = CubeHash<crate::neon::NEON>;
-
+pub type CubeHashBest = CubeHash<crate::neon::NEON>;
 #[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))))]
-type CubeHashBest = CubeHash<crate::scalar::Scalar>;
-
-// ---- Public constructor for best backend ----
-pub fn new_hasher(params: CubeHashParams) -> CubeHashBest {
-    CubeHashBest::new(params)
-}
+pub type CubeHashBest = CubeHash<crate::scalar::Scalar>;
+pub type CubeHashAuto = CubeHashBest;
 
 // ------------------- Generic wrapper for N-byte hashes -------------------
 pub struct CubeHashN<const N: usize> {
