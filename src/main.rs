@@ -1,123 +1,83 @@
-use std::io;
+use std::io::{self, Read};
 use std::env;
-
-mod cubehash;
-use crate::cubehash::cubehash;
+use cubehash::{CubeHashBest, CubeHashParams};
 
 fn help() {
-    println!("Usage: cubehash [OPTIONS] [PARAMETERS]                                        ");
-	println!("                                                                              ");
-	println!("OPTIONS                                                                       ");
-	println!("  -2    Use the second revision of proposed CubeHash parameters, implementing ");
-	println!("        CubeHash160+16/32+160-h for hash length h.                            ");
-	println!("  -3    Use the third revision of proposed CubeHash parameters, implementing  ");
-	println!("        CubeHash16+16/32+32-h for hash length h. This is the default.         ");
-	println!("  -l HASHLEN                                                                  ");
-	println!("        Set the hash length in bits (default: 256). The hash length must be   ");
-	println!("        positive, evenly divisible by 8, and not greater than 512.            ");
-	println!("  -h    Show this help text and exit.                                         ");
+    println!("Usage: cubehash [OPTIONS] [STRING]");
+    println!();
+    println!("OPTIONS");
+    println!("  -2        Use revision 2 (CubeHash160+16/32+h)");
+    println!("  -3        Use revision 3 (CubeHash16+16/32+h, default)");
+    println!("  -l HASHLEN  Set hash length in bits (default: 256, ≤512, divisible by 8)");
+    println!("  -h        Show this help text and exit");
+    println!();
+    println!("If STRING is provided, it is hashed directly. Otherwise, input is read from stdin.");
 }
+
+const BUFSIZE: i32 = 65536;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let mut stdin = io::stdin();
     let mut hashlen = 256;
     let mut revision = 3;
+    let mut string_input: Option<String> = None;
 
-    match args.len() {
-        2 => {
-            let cmd = &args[1];
-            match &cmd[..] {
-                "-2" => revision = 2,
-                "-3" => revision = 3,
-                "-h" => {
-                    help();
-                    return;
-                },
-                _ => { 
-                    eprintln!("error: invalid command");
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "-2" => revision = 2,
+            "-3" => revision = 3,
+            "-l" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: -l requires a number");
                     help();
                     return;
                 }
-            }
-        },
-        3 => {
-            let cmd = &args[1];
-            let num = &args[2];
-            let number: i32 = match num.parse() {
-                Ok(n) => {
-                    n
-                },
-                Err(_) => {
-                    eprintln!("error: second argument not an integer");
-                    help();
-                    return;
-                },
-            };
-            match &cmd[..] {
-                "-l" => {
-                    if number > 512 || number % 8 != 0 {
-                        eprintln!("error: second argument not inferior or equal to 512 and divisible by 8");
+                let n: i32 = match args[i].parse() {
+                    Ok(x) => x,
+                    Err(_) => {
+                        eprintln!("error: invalid hash length");
+                        help();
                         return;
                     }
-                    hashlen = number
-                },
-                _ => {
-                    eprintln!("error: invalid command");
-                    help();
+                };
+                if n > 512 || n % 8 != 0 {
+                    eprintln!("error: hash length must be ≤ 512 and divisible by 8");
                     return;
-                },
+                }
+                hashlen = n;
             }
-        },
-        4 => {
-            let cmd1 = &args[1];
-            let cmd2 = &args[2];
-            let num = &args[3];
-            let number: i32 = match num.parse() {
-                Ok(n) => {
-                    n
-                },
-                Err(_) => {
-                    eprintln!("error: second argument not an integer");
-                    help();
-                    return;
-                },
-            };
+            "-h" => { help(); return; }
+            s => {
+                // Any other argument is treated as string input
+                string_input = Some(s.to_string());
+            }
+        }
+        i += 1;
+    }
 
-            match &cmd1[..] {
-                "-2" => revision = 2,
-                "-3" => revision = 3,
-                _ => {
-                    eprintln!("error: invalid command");
-                    help();
-                    return;
-                },
-            }
+    let params = CubeHashParams { revision, hash_len_bits: hashlen };
+    let mut hasher = CubeHashBest::new(params);
 
-            match &cmd2[..] {
-                "-l" => {
-                    if number > 512 || number % 8 != 0 {
-                        eprintln!("error: second argument not inferior or equal to 512 and divisible by 8");
-                        return;
-                    }
-                    hashlen = number
-                },
-                _ => {
-                    eprintln!("error: invalid command");
-                    help();
-                    return;
-                },
-            }
-        },
-        _ => {
+    if let Some(input) = string_input {
+        // Hash the provided string directly
+        hasher.update(input.as_bytes());
+    } else {
+        // Stream from stdin in BLOCKSIZE chunks
+        let mut buffer = [0u8; BUFSIZE as usize];
+        let stdin = io::stdin();
+        let mut handle = stdin.lock();
+        loop {
+            let n = handle.read(&mut buffer).expect("Failed to read stdin");
+            if n == 0 { break; }
+            hasher.update(&buffer[..n]);
         }
     }
 
-    let result = cubehash(&mut stdin, revision, hashlen);
-
-    for i in 0..hashlen / 8 {
-        print!("{:02x}", result[i as usize]);
+    let result = hasher.finalize();
+    for byte in result {
+        print!("{:02x}", byte);
     }
-
     println!();
 }
