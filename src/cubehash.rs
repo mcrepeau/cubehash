@@ -24,8 +24,6 @@ use core::arch::aarch64::{
     uint32x4_t, vaddq_u32, vdupq_n_u32, vextq_u32, vld1q_u32, vrev64q_u32, vshlq_n_u32, vshrq_n_u32,
     veorq_u32, vst1q_u32,
 };
-#[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))))]
-use crate::u32x4::{add, xor, U32x4};
 
 /// Core CubeHash implementation used by both the CLI and the library wrappers.
 
@@ -116,8 +114,8 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
             } else {
                 datasize = input.read(&mut data).unwrap() as i32;
                 if datasize < BUFSIZE {
-                    let padsize = BLOCKSIZE - datasize % BLOCKSIZE;
-                    for i in &mut data[datasize as usize..(datasize + padsize) as usize] { *i = 0 }
+                    let padsize = BLOCKSIZE - (datasize % BLOCKSIZE);
+                    data[datasize as usize .. (datasize + padsize) as usize].fill(0);
                     data[datasize as usize] = 0x80;
                     datasize += padsize;
                     eof = true;
@@ -225,8 +223,8 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
             } else {
                 datasize = input.read(&mut data).unwrap() as i32;
                 if datasize < BUFSIZE {
-                    let padsize = BLOCKSIZE - datasize % BLOCKSIZE;
-                    for i in &mut data[datasize as usize..(datasize + padsize) as usize] { *i = 0 }
+                    let padsize = BLOCKSIZE - (datasize % BLOCKSIZE);
+                    data[datasize as usize .. (datasize + padsize) as usize].fill(0);
                     data[datasize as usize] = 0x80;
                     datasize += padsize;
                     eof = true;
@@ -356,8 +354,8 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
             } else {
                 datasize = input.read(&mut data).unwrap() as i32;
                 if datasize < BUFSIZE {
-                    let padsize = BLOCKSIZE - datasize % BLOCKSIZE;
-                    for i in &mut data[datasize as usize..(datasize + padsize) as usize] { *i = 0 }
+                    let padsize = BLOCKSIZE - (datasize % BLOCKSIZE);
+                    data[datasize as usize .. (datasize + padsize) as usize].fill(0);
                     data[datasize as usize] = 0x80;
                     datasize += padsize;
                     eof = true;
@@ -378,89 +376,147 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
 
 #[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")), all(target_arch = "x86", not(target_feature = "sse2"))))]
 pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hashlen: i32) -> Vec<u8> {
-    //eprintln!("Hashing using CubeHash{}+16/32+{}-{}...", irounds, frounds, hashlen);
+    #[derive(Clone, Copy)]
+    struct U32x4([u32; 4]);
+
+    impl U32x4 {
+        #[inline(always)] 
+        fn new(a: u32, b: u32, c: u32, d: u32) -> Self {
+            U32x4([a, b, c, d])
+        }
+        
+        #[inline(always)] 
+        fn permute_badc(self) -> U32x4 { 
+            U32x4([self.0[1], self.0[0], self.0[3], self.0[2]]) 
+        }
+        
+        #[inline(always)] 
+        fn permute_cdab(self) -> U32x4 { 
+            U32x4([self.0[2], self.0[3], self.0[0], self.0[1]]) 
+        }
+        
+        #[inline(always)] 
+        fn to_bytes(self) -> [u8;16] {
+            let mut out = [0u8; 16];
+            out[0..4].copy_from_slice(&self.0[3].to_le_bytes());
+            out[4..8].copy_from_slice(&self.0[2].to_le_bytes());
+            out[8..12].copy_from_slice(&self.0[1].to_le_bytes());
+            out[12..16].copy_from_slice(&self.0[0].to_le_bytes());
+            out
+        }
+        
+        #[inline(always)] 
+        fn load_bytes(data: &[u8], offset: usize) -> U32x4 {
+            let w0 = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            let w1 = u32::from_le_bytes([data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7]]);
+            let w2 = u32::from_le_bytes([data[offset + 8], data[offset + 9], data[offset + 10], data[offset + 11]]);
+            let w3 = u32::from_le_bytes([data[offset + 12], data[offset + 13], data[offset + 14], data[offset + 15]]);
+            
+            U32x4([w3, w2, w1, w0])
+        }
+    }
+
+    #[inline(always)]
+    fn add(v: U32x4, w: U32x4) -> U32x4 {
+        U32x4([
+            v.0[0].wrapping_add(w.0[0]),
+            v.0[1].wrapping_add(w.0[1]),
+            v.0[2].wrapping_add(w.0[2]),
+            v.0[3].wrapping_add(w.0[3]),
+        ])
+    }
     
+    #[inline(always)]
+    fn xor(v: U32x4, w: U32x4) -> U32x4 {
+        U32x4([v.0[0] ^ w.0[0], v.0[1] ^ w.0[1], v.0[2] ^ w.0[2], v.0[3] ^ w.0[3]])
+    }
+
+    #[inline(always)]
+    fn shlxor(v: U32x4, n: u32) -> U32x4 {
+        let [a,b,c,d] = v.0;
+        U32x4([
+            (a.wrapping_shl(n)) ^ (a.wrapping_shr(32 - n)),
+            (b.wrapping_shl(n)) ^ (b.wrapping_shr(32 - n)),
+            (c.wrapping_shl(n)) ^ (c.wrapping_shr(32 - n)),
+            (d.wrapping_shl(n)) ^ (d.wrapping_shr(32 - n)),
+        ])
+    }
+
+
+    let mut x0 = U32x4::new(0, ROUNDS as u32, BLOCKSIZE as u32, (hashlen / 8) as u32);
+    let mut x1 = U32x4::new(0, 0, 0, 0);
+    let mut x2 = U32x4::new(0, 0, 0, 0);
+    let mut x3 = U32x4::new(0, 0, 0, 0);
+    let mut x4 = U32x4::new(0, 0, 0, 0);
+    let mut x5 = U32x4::new(0, 0, 0, 0);
+    let mut x6 = U32x4::new(0, 0, 0, 0);
+    let mut x7 = U32x4::new(0, 0, 0, 0);
+
+    let mut data: [u8; BUFSIZE as usize] = [0; BUFSIZE as usize];
+
     let mut done = false;
     let mut eof = false;
     let mut more = true;
-    let mut data: [u8; BUFSIZE as usize] = [0; BUFSIZE as usize];
 
-    let mut x0 = U32x4 { a: 0, b: ROUNDS as u32, c: BLOCKSIZE as u32, d: (hashlen / 8) as u32 };
-    let mut x1 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
-    let mut x2 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
-    let mut x3 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
-    let mut x4 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
-    let mut x5 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
-    let mut x6 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
-    let mut x7 = U32x4 { a: 0, b: 0, c: 0, d: 0 };
-
-    let mut y0: U32x4;
-    let mut y1: U32x4;
-    let mut y2: U32x4;
-    let mut y3: U32x4;
-
-    let mut datasize = irounds / ROUNDS * BLOCKSIZE;
+    let mut datasize: i32 = (irounds / ROUNDS) * BLOCKSIZE;
 
     while !done {
-        let mut pos = 0;
-        let end = datasize - 1;
-
-        while pos < end {
-            x0 = xor(x0, U32x4::load(&data[pos as usize..(pos + 16) as usize]));
-            pos += 16;
-
-            x1 = xor(x1, U32x4::load(&data[pos as usize..(pos + 16) as usize]));
-            pos += 16;
+        // process in 32-byte blocks: XOR m0 into x0, m1 into x1, then do ROUNDS
+        let mut offset = 0usize;
+        while offset + 31 < datasize as usize {
+            x0 = xor(x0, U32x4::load_bytes(&data, offset));
+            x1 = xor(x1, U32x4::load_bytes(&data, offset + 16));
             
-            for _i in 0..ROUNDS {
+            offset += 32;
+
+            for _ in 0..ROUNDS {
                 x4 = add(x0, x4.permute_badc());
                 x5 = add(x1, x5.permute_badc());
                 x6 = add(x2, x6.permute_badc());
                 x7 = add(x3, x7.permute_badc());
-                y0 = x2;
-                y1 = x3;
-                y2 = x0;
-                y3 = x1;
-                x0 = xor(y0.shift_left(7), y0.shift_right(25));
-                x1 = xor(y1.shift_left(7), y1.shift_right(25));
-                x2 = xor(y2.shift_left(7), y2.shift_right(25));
-                x3 = xor(y3.shift_left(7), y3.shift_right(25));
-                x0 = xor(x0, x4);
-                x1 = xor(x1, x5);
-                x2 = xor(x2, x6);
-                x3 = xor(x3, x7);
+
+                let t0 = shlxor(x2, 7);
+                let t1 = shlxor(x3, 7);
+                let t2 = shlxor(x0, 7);
+                let t3 = shlxor(x1, 7);
+
+                x0 = xor(t0, x4);
+                x1 = xor(t1, x5);
+                x2 = xor(t2, x6);
+                x3 = xor(t3, x7);
 
                 x4 = add(x0, x4.permute_cdab());
                 x5 = add(x1, x5.permute_cdab());
                 x6 = add(x2, x6.permute_cdab());
                 x7 = add(x3, x7.permute_cdab());
-                y0 = x1;
-                y1 = x0;
-                y2 = x3;
-                y3 = x2;
-                x0 = xor(y0.shift_left(11), y0.shift_right(21));
-                x1 = xor(y1.shift_left(11), y1.shift_right(21));
-                x2 = xor(y2.shift_left(11), y2.shift_right(21));
-                x3 = xor(y3.shift_left(11), y3.shift_right(21));
-                x0 = xor(x0, x4);
-                x1 = xor(x1, x5);
-                x2 = xor(x2, x6);
-                x3 = xor(x3, x7);
+
+                let u0 = shlxor(x1, 11);
+                let u1 = shlxor(x0, 11);
+                let u2 = shlxor(x3, 11);
+                let u3 = shlxor(x2, 11);
+
+                x0 = xor(u0, x4);
+                x1 = xor(u1, x5);
+                x2 = xor(u2, x6);
+                x3 = xor(u3, x7);
+
             }
         }
+
         done = !more;
 
         if more {
             if eof {
-                datasize = frounds / ROUNDS * BLOCKSIZE;
-                for i in &mut data[0..datasize as usize] { *i = 0 }
-                x7 = xor(x7, U32x4 { a: 0, b: 1, c: 0, d: 0 });
+                datasize = (frounds / ROUNDS) * BLOCKSIZE;
+                data[0 .. datasize as usize].fill(0);
+                x7 = xor(x7, U32x4::new(0, 1, 0, 0));
                 more = false;
             } else {
+                // read next chunk and do padding if this is the last read (< BUFSIZE)
                 datasize = input.read(&mut data).unwrap() as i32;
                 if datasize < BUFSIZE {
-                    let padsize = BLOCKSIZE - datasize % BLOCKSIZE;
-                    for i in &mut data[datasize as usize..(datasize + padsize) as usize] { *i = 0 }
+                    let padsize = BLOCKSIZE - (datasize % BLOCKSIZE);
+                    data[datasize as usize .. (datasize + padsize) as usize].fill(0);
                     data[datasize as usize] = 0x80;
                     datasize += padsize;
                     eof = true;
@@ -469,7 +525,7 @@ pub unsafe fn _cubehash<R: Read>(input: &mut R, irounds: i32, frounds: i32, hash
         }
     }
 
-    return [x0.transmute(), x1.transmute(), x2.transmute(), x3.transmute()].concat()
+    [x0.to_bytes().to_vec(), x1.to_bytes().to_vec(), x2.to_bytes().to_vec(), x3.to_bytes().to_vec()].concat()
 }
 
 pub fn cubehash<R: Read>(input: &mut R, revision: i32, hashlen: i32) -> Vec<u8> {

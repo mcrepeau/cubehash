@@ -1,7 +1,6 @@
 use std::io;
 use std::env;
-#[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))))]
-mod u32x4;
+
 mod cubehash;
 use crate::cubehash::cubehash;
 
