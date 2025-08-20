@@ -102,7 +102,7 @@ impl<B: Backend> CubeHash<B> {
     pub fn finalize(mut self) -> Vec<u8> {
         // padding: 0x80 then zeros to block boundary
         self.block[self.used] = 0x80;
-        for b in &mut self.block[self.used + 1..] { *b = 0; }
+        self.block[self.used + 1..].fill(0);
         self.backend.absorb_block(&self.block);
 
         // set finalize flag

@@ -2,6 +2,7 @@
 mod scalar_backend {
     use crate::{Backend, BLOCKSIZE, ROUNDS, CubeHashParams, rounds_for_rev};
 
+    #[repr(align(16))]
     #[derive(Clone, Copy)]
     struct U32x4([u32; 4]);
 
@@ -21,22 +22,13 @@ mod scalar_backend {
     }
 
     #[inline(always)]
-    fn shlxor(v: U32x4, n: u32) -> U32x4 {
-        let [a,b,c,d] = v.0;
+    fn shlxor<const N: u32>(v: U32x4) -> U32x4 {
         U32x4([
-            (a.wrapping_shl(n)) ^ (a.wrapping_shr(32 - n)),
-            (b.wrapping_shl(n)) ^ (b.wrapping_shr(32 - n)),
-            (c.wrapping_shl(n)) ^ (c.wrapping_shr(32 - n)),
-            (d.wrapping_shl(n)) ^ (d.wrapping_shr(32 - n)),
+            (v.0[0].wrapping_shl(N)) ^ (v.0[0].wrapping_shr(32 - N)),
+            (v.0[1].wrapping_shl(N)) ^ (v.0[1].wrapping_shr(32 - N)),
+            (v.0[2].wrapping_shl(N)) ^ (v.0[2].wrapping_shr(32 - N)),
+            (v.0[3].wrapping_shl(N)) ^ (v.0[3].wrapping_shr(32 - N)),
         ])
-    }
-
-    #[inline]
-    fn as_u32_le(array: &[u8]) -> u32 {
-            ((array[0] as u32) <<  0) +
-            ((array[1] as u32) <<  8) +
-            ((array[2] as u32) << 16) +
-            ((array[3] as u32) << 24)
     }
 
     impl U32x4 {
@@ -58,16 +50,21 @@ mod scalar_backend {
         #[inline(always)]
         fn load_bytes(data: &[u8]) -> U32x4 {
             U32x4([
-                as_u32_le(&data[12..16]),
-                as_u32_le(&data[8..12]),
-                as_u32_le(&data[4..8]),
-                as_u32_le(&data[0..4])
+                u32::from_le_bytes([data[12], data[13], data[14], data[15]]),
+                u32::from_le_bytes([data[8],  data[9],  data[10], data[11]]),
+                u32::from_le_bytes([data[4],  data[5],  data[6],  data[7]]),
+                u32::from_le_bytes([data[0],  data[1],  data[2],  data[3]])
             ])
         }
 
-        #[inline]
+        #[inline(always)]
         pub fn transmute(self) -> Vec<u8> {
-            [self.0[3].to_le_bytes(), self.0[2].to_le_bytes(), self.0[1].to_le_bytes(), self.0[0].to_le_bytes()].concat()
+            [
+                self.0[3].to_le_bytes(),
+                self.0[2].to_le_bytes(),
+                self.0[1].to_le_bytes(),
+                self.0[0].to_le_bytes()
+            ].concat()
         }
     }
 
@@ -85,10 +82,10 @@ mod scalar_backend {
                 self.x6 = add(self.x2, self.x6.permute_badc());
                 self.x7 = add(self.x3, self.x7.permute_badc());
 
-                let t0 = shlxor(self.x2, 7);
-                let t1 = shlxor(self.x3, 7);
-                let t2 = shlxor(self.x0, 7);
-                let t3 = shlxor(self.x1, 7);
+                let t0 = shlxor::<7>(self.x2);
+                let t1 = shlxor::<7>(self.x3);
+                let t2 = shlxor::<7>(self.x0);
+                let t3 = shlxor::<7>(self.x1);
 
                 self.x0 = xor(t0, self.x4);
                 self.x1 = xor(t1, self.x5);
@@ -100,10 +97,10 @@ mod scalar_backend {
                 self.x6 = add(self.x2, self.x6.permute_cdab());
                 self.x7 = add(self.x3, self.x7.permute_cdab());
 
-                let u0 = shlxor(self.x1, 11);
-                let u1 = shlxor(self.x0, 11);
-                let u2 = shlxor(self.x3, 11);
-                let u3 = shlxor(self.x2, 11);
+                let u0 = shlxor::<11>(self.x1);
+                let u1 = shlxor::<11>(self.x0);
+                let u2 = shlxor::<11>(self.x3);
+                let u3 = shlxor::<11>(self.x2);
 
                 self.x0 = xor(u0, self.x4);
                 self.x1 = xor(u1, self.x5);
