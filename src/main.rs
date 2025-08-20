@@ -1,6 +1,6 @@
 use std::io::{self, Read};
 use std::env;
-use cubehash::{new_hasher, CubeHashParams, BLOCKSIZE};
+use cubehash::{new_hasher, CubeHashParams};
 
 fn help() {
     println!("Usage: cubehash [OPTIONS] [STRING]");
@@ -13,6 +13,8 @@ fn help() {
     println!();
     println!("If STRING is provided, it is hashed directly. Otherwise, input is read from stdin.");
 }
+
+const BUFSIZE: i32 = 65536;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -63,7 +65,7 @@ fn main() {
         hasher.update(input.as_bytes());
     } else {
         // Stream from stdin in BLOCKSIZE chunks
-        let mut buffer = [0u8; BLOCKSIZE];
+        let mut buffer = [0u8; BUFSIZE as usize];
         let stdin = io::stdin();
         let mut handle = stdin.lock();
         loop {
