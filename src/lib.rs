@@ -8,16 +8,26 @@ pub use cubehash::{CubeHashAuto, CubeHashBest, CubeHash256, CubeHash384, CubeHas
 
 use std::cmp;
 
+/// Size of a single message block absorbed per step, in bytes.
 pub const BLOCKSIZE: usize = 32; // bytes
+
+/// Number of rounds per absorb/finalization group.
 pub const ROUNDS: i32 = 16;
+
+/// Maximum digest size in bits supported by this implementation.
 pub const MAXHASHLEN: i32 = 512;
 
 #[derive(Clone, Copy, Debug)]
+/// Parameters controlling the CubeHash instance.
+///
+/// - `revision`: which version of CubeHash to use (2 or 3).
+/// - `hash_len_bits`: desired digest size in bits (8..=512, multiple of 8).
 pub struct CubeHashParams {
-    pub revision: i32,       // 2 or 3
-    pub hash_len_bits: i32,  // 8..=512 step 8
+    pub revision: i32,
+    pub hash_len_bits: i32,
 }
 impl Default for CubeHashParams {
+    /// Default parameters: revision 3, 256-bit digest.
     fn default() -> Self { Self { revision: 3, hash_len_bits: 256 } }
 }
 
@@ -33,20 +43,19 @@ fn rounds_for_rev(revision: i32) -> (i32, i32) {
 /// Every backend must expose the same surface (monomorphized).
 pub trait Backend {
     /// Create state and perform the *initialization phase*:
-    /// absorb (irounds/ROUNDS) zero blocks, i.e., run `irounds` rounds total.
     fn new(params: CubeHashParams) -> Self;
 
     /// XOR this 32-byte message block into the state and run `ROUNDS` rounds.
     fn absorb_block(&mut self, block32: &[u8]);
 
-    /// Set the finalization flag (x7 ^= [0,1,0,0]).
+    /// Set the finalization flag (x7 ^= \[0,1,0,0\]).
     fn set_finalize_flag(&mut self);
 
     /// Run exactly one *group* of `ROUNDS` rounds without absorbing more input.
     fn rounds_only(&mut self);
 
-    /// Extract full 128 bytes (x0..x3) as in your kernels, caller truncates.
-    fn output_full(&self) -> [u8; 64]; // 4 * 16 = 64 in your code (x0..x3)
+    /// Extract full output, caller truncates.
+    fn output_full(&self) -> [u8; 64];
 }
 
 /// Generic streaming hasher; monomorphized per backend `B`.
