@@ -86,9 +86,13 @@ jobs:
           aws s3 cp pkg/cubehash_wasm_bg.wasm "${DEST}cubehash_wasm_bg.wasm" \
             --endpoint-url "$S3_ENDPOINT" \
             --no-guess-mime-type \
-            --content-type application/wasm
+            --content-type application/wasm \
+            --metadata-directive REPLACE \
+            --metadata "Access-Control-Allow-Origin=*"
 
           aws s3 cp pkg/cubehash_wasm.js "${DEST}cubehash_wasm.js" \
             --endpoint-url "$S3_ENDPOINT" \
             --no-guess-mime-type \
-            --content-type application/javascript
+            --content-type application/javascript \
+            --metadata-directive REPLACE \
+            --metadata "Access-Control-Allow-Origin=*"
