@@ -72,7 +72,7 @@ jobs:
           AWS_EC2_METADATA_DISABLED: "true"
           # R2 ignores region, but AWS CLI requires a value; us-east-1 is a safe placeholder.
           AWS_DEFAULT_REGION: us-east-1
-          S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
           S3_BUCKET: ${{ secrets.S3_BUCKET }}
         run: |
           set -euxo pipefail
@@ -80,25 +80,15 @@ jobs:
           DEST="s3://${S3_BUCKET}/cubehash-wasm/${VERSION}/"
           
           # Ensure expected files exist
-          test -f pkg/cubehash_bg.wasm
-          test -f pkg/cubehash.js
+          test -f pkg/cubehash_wasm_bg.wasm
+          test -f pkg/cubehash_wasm.js
 
-          aws s3 cp pkg/cubehash_bg.wasm "${DEST}cubehash_bg.wasm" \
-            --endpoint-url "$S3_ENDPOINT_URL" \
+          aws s3 cp pkg/cubehash_wasm_bg.wasm "${DEST}cubehash_wasm_bg.wasm" \
+            --endpoint-url "$S3_ENDPOINT" \
             --no-guess-mime-type \
             --content-type application/wasm
 
-          aws s3 cp pkg/cubehash.js "${DEST}cubehash.js" \
-            --endpoint-url "$S3_ENDPOINT_URL" \
+          aws s3 cp pkg/cubehash_wasm.js "${DEST}cubehash_wasm.js" \
+            --endpoint-url "$S3_ENDPOINT" \
             --no-guess-mime-type \
             --content-type application/javascript
-
-          # Build the CLI and compute CubeHash (rev3, 256-bit) of the wasm
-          cargo build --release --bin cubehash
-          ./target/release/cubehash -3 -l 256 < pkg/cubehash_bg.wasm > pkg/cubehash_bg.wasm.cubehash256
-
-          # Upload the CubeHash checksum file
-          aws s3 cp pkg/cubehash_bg.wasm.cubehash256 "${DEST}cubehash_bg.wasm.cubehash256" \
-            --endpoint-url "$S3_ENDPOINT_URL" \
-            --no-guess-mime-type \
-            --content-type text/plain
