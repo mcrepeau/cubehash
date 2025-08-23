@@ -9,6 +9,7 @@ Dennis Mitchell (`https://github.com/DennisMitchell/cubehash`).
 - **x86/x86_64**: SSE2 and AVX2 intrinsics
 - **AArch64**: NEON intrinsics
 - **Portable scalar**: always available; can be forced with the `force-scalar` feature
+- **WebAssembly** binary and bindings
 - Both **CubeHash rev2** and **rev3** are supported; CLI allows `-2`/`-3` selection
 
 ### Library usage

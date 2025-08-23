@@ -11,7 +11,6 @@ pub type CubeHashBest = CubeHash<crate::avx2::AVX2>;
 /// Auto-selected CubeHash type for the current target on x86/x86_64 without AVX2.
 ///
 /// This is an alias for `CubeHash<crate::sse2::SSE2>`.
-
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(target_feature = "avx2"), not(feature = "force-scalar")))]
 pub type CubeHashBest = CubeHash<crate::sse2::SSE2>;
 

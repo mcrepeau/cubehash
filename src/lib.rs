@@ -4,6 +4,10 @@ mod sse2;
 mod avx2;
 mod neon;
 
+// Only compile and expose the wasm bindings when targeting wasm32 with the "wasm" feature.
+#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+pub mod wasm;
+
 pub use cubehash::{CubeHashAuto, CubeHashBest, CubeHash256, CubeHash384, CubeHash512};
 
 use std::cmp;
