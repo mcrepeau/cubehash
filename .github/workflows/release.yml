@@ -59,6 +59,7 @@ jobs:
           cargo install wasm-pack
 
       - name: Build pkg/ with wasm-pack (web target, feature "wasm")
+        working-directory: cubehash-wasm
         run: |
           set -euxo pipefail
           wasm-pack build --release --target web --features wasm
@@ -71,6 +72,7 @@ jobs:
           aws-region: auto
 
       - name: Upload .wasm (and checksum) to S3
+        working-directory: cubehash-wasm
         env:
           S3_BUCKET: ${{ secrets.S3_BUCKET }}
         run: |

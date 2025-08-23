@@ -1,5 +1,5 @@
 use wasm_bindgen::prelude::*;
-use crate::{CubeHashBest, CubeHashParams};
+use cubehash::{CubeHashBest, CubeHashParams};
 
 /// Streaming CubeHash wrapper for JavaScript via wasm-bindgen.
 ///

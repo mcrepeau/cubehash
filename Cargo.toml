@@ -26,16 +26,13 @@ include = [
 [lib]
 name = "cubehash"
 path = "src/lib.rs"
-crate-type = ["rlib", "cdylib"]
-
-[dependencies]
-wasm-bindgen = { version = "0.2", optional = true }
+crate-type = ["rlib"]
 
 [features]
 default = []
 force-scalar = []
 # Enable this feature when targeting wasm (lets you `--features wasm`)
-wasm = ["wasm-bindgen"]
+wasm = []
 
 [profile.release]
 opt-level = 3
