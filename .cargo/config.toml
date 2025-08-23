@@ -1,2 +1,6 @@
-[build]
+[target.'cfg(not(target_arch = "wasm32"))']
 rustflags = ["-C", "target-cpu=native"]
+
+# For wasm, avoid target-cpu=native (optionally tune for size)
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "opt-level=z"]

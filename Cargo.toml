@@ -1,6 +1,6 @@
 [package]
 name = "cubehash"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Matthieu Crépeau <matthieu.crepeau@outlook.com>"]
 edition = "2021"
 description = "CubeHash (rev2/rev3) hashing with SIMD acceleration and portable fallback"
@@ -26,10 +26,16 @@ include = [
 [lib]
 name = "cubehash"
 path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+wasm-bindgen = { version = "0.2", optional = true }
 
 [features]
 default = []
 force-scalar = []
+# Enable this feature when targeting wasm (lets you `--features wasm`)
+wasm = ["wasm-bindgen"]
 
 [profile.release]
 opt-level = 3
