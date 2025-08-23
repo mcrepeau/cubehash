@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish-crate:
+    name: Publish crate to crates.io
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust 1.88.0
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+
+      - name: Verify release tag matches Cargo.toml version
+        run: |
+          set -euxo pipefail
+          PKG_VERSION=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[0].version')
+          # Use tag name if available (release), fallback to ref name (workflow_dispatch)
+          TAG_NAME="${{ github.event.release.tag_name || github.ref_name }}"
+          if [ "$TAG_NAME" != "v$PKG_VERSION" ] && [ "$TAG_NAME" != "$PKG_VERSION" ]; then
+            echo "Tag $TAG_NAME does not match Cargo.toml version $PKG_VERSION"
+            exit 1
+          fi
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euxo pipefail
+          cargo publish --locked
+
+  build-wasm-and-upload:
+    name: Build WASM and upload to S3
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust 1.88.0 with wasm32 target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: |
+          set -euxo pipefail
+          cargo install wasm-pack
+
+      - name: Build pkg/ with wasm-pack (web target, feature "wasm")
+        working-directory: cubehash-wasm
+        run: |
+          set -euxo pipefail
+          wasm-pack build --release --target web --features wasm
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: auto
+
+      - name: Upload .wasm (and checksum) to S3
+        working-directory: cubehash-wasm
+        env:
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+        run: |
+          set -euxo pipefail
+          VERSION=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[0].version')
+          DEST="s3://${S3_BUCKET}/cubehash-wasm/${VERSION}/"
+          
+          # Ensure expected files exist
+          test -f pkg/cubehash_bg.wasm
+          test -f pkg/cubehash.js
+
+          aws s3 cp pkg/cubehash_bg.wasm "${DEST}cubehash_bg.wasm" \
+            --endpoint-url "$S3_ENDPOINT_URL" \
+            --no-guess-mime-type \
+            --content-type application/wasm
+
+          aws s3 cp pkg/cubehash.js "${DEST}cubehash.js" \
+            --endpoint-url "$S3_ENDPOINT_URL" \
+            --no-guess-mime-type \
+            --content-type application/javascript
+
+          # Build the CLI and compute CubeHash (rev3, 256-bit) of the wasm
+          cargo build --release --bin cubehash
+          ./target/release/cubehash -3 -l 256 < pkg/cubehash_bg.wasm > pkg/cubehash_bg.wasm.cubehash256
+
+          # Upload the CubeHash checksum file
+          aws s3 cp pkg/cubehash_bg.wasm.cubehash256 "${DEST}cubehash_bg.wasm.cubehash256" \
+            --endpoint-url "$S3_ENDPOINT_URL" \
+            --no-guess-mime-type \
+            --content-type text/plain
+
