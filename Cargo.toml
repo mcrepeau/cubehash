@@ -21,6 +21,7 @@ include = [
   "src/sse2.rs",
   "src/neon.rs",
   "src/scalar.rs",
+  "src/wasm32.rs"
 ]
 
 [lib]

@@ -63,6 +63,7 @@ jobs:
         run: |
           set -euxo pipefail
           wasm-pack build --release --target web --features wasm
+          mv pkg pkg-scalar
 
       - name: Build SIMD WASM (simd128) with wasm-pack (web target, feature "wasm")
         working-directory: cubehash-wasm
@@ -70,7 +71,8 @@ jobs:
           RUSTFLAGS: -C target-feature=+simd128
         run: |
           set -euxo pipefail
-          wasm-pack build --release --target web --features wasm --out-dir pkg-simd
+          wasm-pack build --release --target web --features wasm
+          mv pkg pkg-simd
 
       - name: Upload .wasm (and checksum) to S3
         working-directory: cubehash-wasm
@@ -88,17 +90,17 @@ jobs:
           DEST="s3://${S3_BUCKET}/cubehash-wasm/${VERSION}/"
           
           # Ensure expected files exist
-          test -f pkg/cubehash_wasm_bg.wasm
-          test -f pkg/cubehash_wasm.js
+          test -f pkg-scalar/cubehash_wasm_bg.wasm
+          test -f pkg-scalar/cubehash_wasm.js
           test -f pkg-simd/cubehash_wasm_bg.wasm
           test -f pkg-simd/cubehash_wasm.js
 
-          aws s3 cp pkg/cubehash_wasm_bg.wasm "${DEST}cubehash_wasm_bg.wasm" \
+          aws s3 cp pkg-scalar/cubehash_wasm_bg.wasm "${DEST}cubehash_wasm_bg.wasm" \
             --endpoint-url "$S3_ENDPOINT" \
             --no-guess-mime-type \
             --content-type application/wasm
 
-          aws s3 cp pkg/cubehash_wasm.js "${DEST}cubehash_wasm.js" \
+          aws s3 cp pkg-scalar/cubehash_wasm.js "${DEST}cubehash_wasm.js" \
             --endpoint-url "$S3_ENDPOINT" \
             --no-guess-mime-type \
             --content-type application/javascript
