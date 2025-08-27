@@ -3,6 +3,7 @@ mod scalar;
 mod sse2;
 mod avx2;
 mod neon;
+mod wasm32;
 
 // Only compile and expose the wasm bindings when targeting wasm32 with the "wasm" feature.
 #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
