@@ -95,22 +95,22 @@ jobs:
           test -f pkg-simd/cubehash_wasm_bg.wasm
           test -f pkg-simd/cubehash_wasm.js
 
-          aws s3 cp pkg-scalar/cubehash_wasm_bg.wasm "${DEST}cubehash_wasm_bg.wasm" \
+          aws s3 cp pkg-scalar/cubehash_wasm_bg.wasm "${DEST}scalar/cubehash_wasm_bg.wasm" \
             --endpoint-url "$S3_ENDPOINT" \
             --no-guess-mime-type \
             --content-type application/wasm
 
-          aws s3 cp pkg-scalar/cubehash_wasm.js "${DEST}cubehash_wasm.js" \
+          aws s3 cp pkg-scalar/cubehash_wasm.js "${DEST}scalar/cubehash_wasm.js" \
             --endpoint-url "$S3_ENDPOINT" \
             --no-guess-mime-type \
             --content-type application/javascript
           
-          aws s3 cp pkg-simd/cubehash_wasm_bg.wasm "${DEST}cubehash_wasm_bg_simd.wasm" \
+          aws s3 cp pkg-simd/cubehash_wasm_bg.wasm "${DEST}simd/cubehash_wasm_bg.wasm" \
             --endpoint-url "$S3_ENDPOINT" \
             --no-guess-mime-type \
             --content-type application/wasm
           
-          aws s3 cp pkg-simd/cubehash_wasm.js "${DEST}cubehash_wasm_simd.js" \
+          aws s3 cp pkg-simd/cubehash_wasm.js "${DEST}simd/cubehash_wasm.js" \
             --endpoint-url "$S3_ENDPOINT" \
             --no-guess-mime-type \
             --content-type application/javascript
