@@ -1,4 +1,5 @@
-#[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64", target_arch = "wasm32"))))]
+#[cfg(any(feature = "force-scalar", all(target_arch = "wasm32", not(target_feature = "simd128"))
+    , not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64", target_arch = "wasm32"))))]
 mod scalar_backend {
     use crate::{Backend, BLOCKSIZE, ROUNDS, CubeHashParams, rounds_for_rev};
 
@@ -154,5 +155,6 @@ mod scalar_backend {
 }
 
 // Re-export at crate level
-#[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64", target_arch = "wasm32"))))]
+#[cfg(any(feature = "force-scalar", all(target_arch = "wasm32", not(target_feature = "simd128"))
+    , not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64", target_arch = "wasm32"))))]
 pub use scalar_backend::Scalar;

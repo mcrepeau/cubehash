@@ -1,4 +1,4 @@
-#[cfg(all(target_arch = "wasm32"))]
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128", not(feature = "force-scalar")))]
 mod wasm32_backend {
     use core::arch::wasm32::*;
     use crate::{Backend, BLOCKSIZE, ROUNDS, CubeHashParams, rounds_for_rev};
@@ -143,5 +143,5 @@ mod wasm32_backend {
 }
 
 // Re-export only when simd128 is available
-#[cfg(all(target_arch = "wasm32"))]
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128", not(feature = "force-scalar")))]
 pub use wasm32_backend::WasmSimd;

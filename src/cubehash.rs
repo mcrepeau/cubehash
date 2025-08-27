@@ -23,13 +23,14 @@ pub type CubeHashBest = CubeHash<crate::neon::NEON>;
 /// Auto-selected CubeHash type for WASM32 targets with SIMD128.
 ///
 /// This is an alias for `CubeHash<crate::wasm32::Wasm32>`.
-#[cfg(all(target_arch = "wasm32"))]
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128", not(feature = "force-scalar")))]
 pub type CubeHashBest = CubeHash<crate::wasm32::WasmSimd>;
 
 /// Auto-selected CubeHash type for targets without SIMD support or when `force-scalar` is enabled.
 ///
 /// This is an alias for `CubeHash<crate::scalar::Scalar>`.
-#[cfg(any(feature = "force-scalar", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64", target_arch = "wasm32"))))]
+#[cfg(any(feature = "force-scalar", all(target_arch = "wasm32", not(target_feature = "simd128"))
+, not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64", target_arch = "wasm32"))))]
 pub type CubeHashBest = CubeHash<crate::scalar::Scalar>;
 
 /// Synonym for `CubeHashBest`.
