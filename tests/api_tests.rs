@@ -69,22 +69,18 @@ fn streaming_multi_update_matches_single_update() {
 #[test]
 fn rev3_fixed_wrappers_match_generic() {
     let data = b"example";
-    let revision = 3; // specify the revision explicitly
 
-    let expected256 = cubehash_bytes(data, revision, 256);
-    let mut h256 = CubeHash256::new(revision);
-    h256.update(data);
-    assert_eq!(h256.finalize().as_slice(), &expected256);
+    let expected256 = cubehash_bytes(data, 3, 256);
+    let h256 = CubeHash256::digest(data);
+    assert_eq!(h256.as_slice(), &expected256);
 
-    let expected384 = cubehash_bytes(data, revision, 384);
-    let mut h384 = CubeHash384::new(revision);
-    h384.update(data);
-    assert_eq!(h384.finalize().as_slice(), &expected384);
+    let expected384 = cubehash_bytes(data, 3, 384);
+    let h384 = CubeHash384::digest(data);
+    assert_eq!(h384.as_slice(), &expected384);
 
-    let expected512 = cubehash_bytes(data, revision, 512);
-    let mut h512 = CubeHash512::new(revision);
-    h512.update(data);
-    assert_eq!(h512.finalize().as_slice(), &expected512);
+    let expected512 = cubehash_bytes(data, 3, 512);
+    let h512 = CubeHash512::digest(data);
+    assert_eq!(h512.as_slice(), &expected512);
 }
 
 
