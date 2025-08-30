@@ -63,7 +63,7 @@ pub type CubeHashAuto = CubeHashBest;
 /// ```rust
 /// use cubehash::CubeHash256;
 ///
-/// let mut h = CubeHash256::new(3); // revision 3
+/// let mut h = CubeHash256::new(); // revision 3
 /// h.update(b"hello");
 /// let out = h.finalize();
 /// assert_eq!(out.len(), 32);
@@ -75,24 +75,21 @@ pub struct CubeHashN<const N: usize> {
 impl<const N: usize> CubeHashN<N> {
     /// Construct a new fixed-size CubeHash hasher for a given revision.
     ///
-    /// Arguments:
-    /// - `revision`: 2 or 3
-    ///
     /// The digest size is determined by `N` (in bytes).
     ///
     /// Example:
     /// ```rust
     /// use cubehash::CubeHash384;
     ///
-    /// let mut h = CubeHash384::new(3);
+    /// let mut h = CubeHash384::new();
     /// h.update(b"abc");
     /// let out = h.finalize();
     /// assert_eq!(out.len(), 48);
     /// ```
-    pub fn new(revision: i32) -> Self {
+    pub fn new() -> Self {
         Self {
             inner: CubeHashBest::new(CubeHashParams {
-                revision,
+                revision: 3,
                 hash_len_bits: (N * 8) as i32,
             }),
         }
@@ -115,6 +112,25 @@ impl<const N: usize> CubeHashN<N> {
         a.copy_from_slice(&out[..N]);
         a
     }
+
+    /// One-shot hashing: compute the digest of `data`
+    ///
+    /// This is a convenience method that avoids explicitly creating a hasher and
+    /// calling `update` and `finalize`.
+    ///
+    /// Example:
+    /// ```rust
+    /// use cubehash::CubeHash256;
+    ///
+    /// let out = CubeHash256::digest(b"hello");
+    /// assert_eq!(out.len(), 32);
+    /// ```
+    pub fn digest(data: &[u8]) -> [u8; N] {
+        let mut h = Self::new();
+        h.update(data);
+        h.finalize()
+    }
+
 }
 
 // ------------------- Type aliases for common hash sizes -------------------
@@ -124,7 +140,7 @@ impl<const N: usize> CubeHashN<N> {
 /// ```rust
 /// use cubehash::CubeHash256;
 ///
-/// let mut h = CubeHash256::new(3);
+/// let mut h = CubeHash256::new();
 /// h.update(b"example");
 /// let out = h.finalize();
 /// assert_eq!(out.len(), 32);
@@ -137,7 +153,7 @@ pub type CubeHash256 = CubeHashN<32>;
 /// ```rust
 /// use cubehash::CubeHash384;
 ///
-/// let mut h = CubeHash384::new(3);
+/// let mut h = CubeHash384::new();
 /// h.update(b"example");
 /// let out = h.finalize();
 /// assert_eq!(out.len(), 48);
@@ -150,7 +166,7 @@ pub type CubeHash384 = CubeHashN<48>;
 /// ```rust
 /// use cubehash::CubeHash512;
 ///
-/// let mut h = CubeHash512::new(2);
+/// let mut h = CubeHash512::new();
 /// h.update(b"example");
 /// let out = h.finalize();
 /// assert_eq!(out.len(), 64);
