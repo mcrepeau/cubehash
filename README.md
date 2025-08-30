@@ -9,7 +9,7 @@ Dennis Mitchell (`https://github.com/DennisMitchell/cubehash`).
 - **x86/x86_64**: SSE2 and AVX2 intrinsics
 - **AArch64**: NEON intrinsics
 - **Portable scalar**: always available; can be forced with the `force-scalar` feature
-- **WebAssembly** binary and bindings
+- **WebAssembly** binary and bindings with SIMD support
 - Both **CubeHash rev2** and **rev3** are supported; CLI allows `-2`/`-3` selection
 
 ### Library usage
@@ -21,22 +21,32 @@ cubehash = "0.3"
 # optionally force the portable (non-SIMD) backend:
 # cubehash = { version = "0.3", features = ["force-scalar"] }
 ```
-Incremental API with fixed-size wrappers (choose revision 2 or 3):
+Incremental API with fixed-size wrappers:
 ```
 use cubehash::{CubeHash256, CubeHash384, CubeHash512};
 
-let mut h256 = CubeHash256::new(3); // revision 3
+let mut h256 = CubeHash256::new();
 h256.update(b"hello");
 h256.update(b" world");
 let digest_32: [u8; 32] = h256.finalize();
 
-let mut h384 = CubeHash384::new(3);
+let mut h384 = CubeHash384::new();
 h384.update(b"data");
 let digest_48: [u8; 48] = h384.finalize();
 
-let mut h512 = CubeHash512::new(2); // revision 2
+let mut h512 = CubeHash512::new();
 h512.update(b"data");
 let digest_64: [u8; 64] = h512.finalize();
+```
+Digest API with fixed-size wrappers:
+```
+use cubehash::{CubeHash256, CubeHash384, CubeHash512};
+
+let digest_32: [u8; 32] = CubeHash256::digest(b"hello world");
+
+let digest_48: [u8; 48] = CubeHash384::digest(b"hello world");
+
+let digest_64: [u8; 64] = CubeHash512::digest(b"hello world");
 ```
 Generic streaming API with explicit parameters (auto-selects the best backend):
 ```
@@ -79,7 +89,7 @@ and compare against expected outputs:
 
 ### References
 
-- Spec and background: `https://cubehash.cr.yp.to/`
+- Spec and background: [https://cubehash.cr.yp.to/](https://cubehash.cr.yp.to/)
 
 ### License
 
