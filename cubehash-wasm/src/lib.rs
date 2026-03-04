@@ -6,8 +6,7 @@ use cubehash::{CubeHashBest, CubeHashParams};
 /// Exposes `new(revision, hash_len_bits)`, `update(Uint8Array)`, `finalize() -> Uint8Array`.
 #[wasm_bindgen]
 pub struct WasmCubeHash {
-    inner: CubeHashBest,
-    finalized: bool,
+    inner: Option<CubeHashBest>,
 }
 
 #[wasm_bindgen]
@@ -20,32 +19,24 @@ impl WasmCubeHash {
     pub fn new(revision: i32, hash_len_bits: i32) -> WasmCubeHash {
         let params = CubeHashParams { revision, hash_len_bits };
         WasmCubeHash {
-            inner: CubeHashBest::new(params),
-            finalized: false,
+            inner: Some(CubeHashBest::new(params)),
         }
     }
 
     /// Absorb more data (Uint8Array in JS).
     pub fn update(&mut self, data: &[u8]) {
-        if !self.finalized {
-            self.inner.update(data);
+        if let Some(inner) = &mut self.inner {
+            inner.update(data);
         }
     }
 
     /// Finalize and return the digest as a Uint8Array.
     /// Calling this more than once returns an empty array.
     pub fn finalize(&mut self) -> Vec<u8> {
-        if self.finalized {
-            return Vec::new();
+        match self.inner.take() {
+            Some(inner) => inner.finalize(),
+            None => Vec::new(),
         }
-        self.finalized = true;
-        // Move out, then finalize
-        let inner = core::mem::replace(
-            &mut self.inner,
-            // Minimal unused placeholder; never actually used again
-            CubeHashBest::new(CubeHashParams { revision: 3, hash_len_bits: 8 }),
-        );
-        inner.finalize()
     }
 }
 
