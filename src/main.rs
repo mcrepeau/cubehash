@@ -42,10 +42,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         return Ok(());
                     }
                 };
-                if n > 512 || n % 8 != 0 {
-                    eprintln!("error: hash length must be ≤ 512 and divisible by 8");
-                    return Ok(());
-                }
                 hashlen = n;
             }
             "-h" => { help(); return Ok(()); }
@@ -58,6 +54,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let params = CubeHashParams { revision, hash_len_bits: hashlen };
+    if let Err(e) = params.validate() {
+        eprintln!("error: {e}");
+        return Ok(());
+    }
     let mut hasher = CubeHashBest::new(params);
 
     if let Some(input) = string_input {

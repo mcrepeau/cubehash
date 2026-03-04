@@ -35,6 +35,17 @@ impl Default for CubeHashParams {
     /// Default parameters: revision 3, 256-bit digest.
     fn default() -> Self { Self { revision: 3, hash_len_bits: 256 } }
 }
+impl CubeHashParams {
+    pub fn validate(self) -> Result<(), &'static str> {
+        if self.revision != 2 && self.revision != 3 {
+            return Err("revision must be 2 or 3");
+        }
+        if self.hash_len_bits <= 0 || self.hash_len_bits > MAXHASHLEN || self.hash_len_bits % 8 != 0 {
+            return Err("hash length must be between 8 and 512 bits and divisible by 8");
+        }
+        Ok(())
+    }
+}
 
 #[inline(always)]
 fn rounds_for_rev(revision: i32) -> (i32, i32) {
@@ -74,10 +85,7 @@ pub struct CubeHash<B: Backend> {
 
 impl<B: Backend> CubeHash<B> {
     pub fn new(params: CubeHashParams) -> Self {
-        assert!(params.hash_len_bits > 0
-            && params.hash_len_bits <= MAXHASHLEN
-            && params.hash_len_bits % 8 == 0
-            && (params.revision == 2 || params.revision == 3));
+        params.validate().expect("invalid CubeHashParams");
 
         let (_ir, fr) = rounds_for_rev(params.revision);
         Self {
