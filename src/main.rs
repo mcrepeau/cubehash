@@ -16,7 +16,7 @@ fn help() {
 
 const BUFSIZE: i32 = 65536;
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     let mut hashlen = 256;
     let mut revision = 3;
@@ -32,23 +32,19 @@ fn main() {
                 if i >= args.len() {
                     eprintln!("error: -l requires a number");
                     help();
-                    return;
+                    return Ok(());
                 }
                 let n: i32 = match args[i].parse() {
                     Ok(x) => x,
                     Err(_) => {
                         eprintln!("error: invalid hash length");
                         help();
-                        return;
+                        return Ok(());
                     }
                 };
-                if n > 512 || n % 8 != 0 {
-                    eprintln!("error: hash length must be ≤ 512 and divisible by 8");
-                    return;
-                }
                 hashlen = n;
             }
-            "-h" => { help(); return; }
+            "-h" => { help(); return Ok(()); }
             s => {
                 // Any other argument is treated as string input
                 string_input = Some(s.to_string());
@@ -58,6 +54,10 @@ fn main() {
     }
 
     let params = CubeHashParams { revision, hash_len_bits: hashlen };
+    if let Err(e) = params.validate() {
+        eprintln!("error: {e}");
+        return Ok(());
+    }
     let mut hasher = CubeHashBest::new(params);
 
     if let Some(input) = string_input {
@@ -69,7 +69,7 @@ fn main() {
         let stdin = io::stdin();
         let mut handle = stdin.lock();
         loop {
-            let n = handle.read(&mut buffer).expect("Failed to read stdin");
+            let n = handle.read(&mut buffer)?;
             if n == 0 { break; }
             hasher.update(&buffer[..n]);
         }
@@ -80,4 +80,5 @@ fn main() {
         print!("{:02x}", byte);
     }
     println!();
+    Ok(())
 }
