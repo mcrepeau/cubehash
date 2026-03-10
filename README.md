@@ -17,9 +17,9 @@ Dennis Mitchell (`https://github.com/DennisMitchell/cubehash`).
 Add to your `Cargo.toml`:
 ```
 [dependencies]
-cubehash = "0.3"
+cubehash = "0.4"
 # optionally force the portable (non-SIMD) backend:
-# cubehash = { version = "0.3", features = ["force-scalar"] }
+# cubehash = { version = "0.4", features = ["force-scalar"] }
 ```
 Incremental API with fixed-size wrappers:
 ```
