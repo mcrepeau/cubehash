@@ -87,6 +87,9 @@ There is also a manifest-based verification script used in CI to hash test files
 and compare against expected outputs:
 `./scripts/verify_manifest.sh`
 
+CI additionally verifies the WASM (wasm32) backends — SIMD128 and scalar —
+by running the digest checks in `wasm-digest-check/` under wasmtime.
+
 ### References
 
 - Spec and background: [https://cubehash.cr.yp.to/](https://cubehash.cr.yp.to/)
