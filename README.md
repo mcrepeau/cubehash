@@ -8,6 +8,8 @@ Dennis Mitchell (`https://github.com/DennisMitchell/cubehash`).
 
 - **x86/x86_64**: AVX2 and SSE2 intrinsics, selected at runtime based on CPU support (no `RUSTFLAGS` needed); scalar fallback
 - **AArch64**: NEON intrinsics
+- **RISC-V (rv64)**: portable scalar backend; no RVV backend yet (Rust's RVV
+  intrinsics are still unstable, see rust-lang/rust#114544)
 - **Portable scalar**: always available; can be forced with the `force-scalar` feature
 - **WebAssembly** binary and bindings with SIMD support
 - Both **CubeHash rev2** and **rev3** are supported; CLI allows `-2`/`-3` selection

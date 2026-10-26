@@ -44,6 +44,17 @@ jobs:
       - name: cargo check (force-scalar)
         run: cargo check --features force-scalar
 
+  cross-check-riscv64:
+    name: Cross-check RISC-V rv64 (scalar fallback)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: riscv64gc-unknown-linux-gnu
+      - name: cargo check
+        run: cargo check --target riscv64gc-unknown-linux-gnu
+
   verify-wasm-digests:
     name: Verify WASM digests (wasm32)
     runs-on: ubuntu-latest
