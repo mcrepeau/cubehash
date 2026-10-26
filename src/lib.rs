@@ -4,12 +4,24 @@ mod sse2;
 mod avx2;
 mod neon;
 mod wasm32;
-
-// Only compile and expose the wasm bindings when targeting wasm32 with the "wasm" feature.
-#[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-pub mod wasm;
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(feature = "force-scalar")))]
+mod auto;
 
 pub use cubehash::{CubeHashAuto, CubeHashBest, CubeHash256, CubeHash384, CubeHash512};
+
+// Concrete backends, exported so callers can pin a specific implementation
+// (or benchmark them side by side) instead of using the automatic selection.
+pub use scalar::Scalar;
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(feature = "force-scalar")))]
+pub use avx2::AVX2;
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(feature = "force-scalar")))]
+pub use sse2::SSE2;
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(feature = "force-scalar")))]
+pub use auto::AutoBackend;
+#[cfg(all(target_arch = "aarch64", not(feature = "force-scalar")))]
+pub use neon::NEON;
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128", not(feature = "force-scalar")))]
+pub use wasm32::WasmSimd;
 
 use std::cmp;
 

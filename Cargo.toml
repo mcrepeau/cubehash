@@ -21,7 +21,8 @@ include = [
   "src/sse2.rs",
   "src/neon.rs",
   "src/scalar.rs",
-  "src/wasm32.rs"
+  "src/wasm32.rs",
+  "src/auto.rs"
 ]
 
 [lib]
@@ -32,8 +33,6 @@ crate-type = ["rlib"]
 [features]
 default = []
 force-scalar = []
-# Enable this feature when targeting wasm (lets you `--features wasm`)
-wasm = []
 
 [profile.release]
 opt-level = 3

@@ -2,17 +2,13 @@
 pub use crate::{CubeHash, CubeHashParams};
 
 // ---- Backend auto-selection type alias ----
-/// Auto-selected CubeHash type for the current target when AVX2 is available.
+/// Auto-selected CubeHash type on x86/x86_64.
 ///
-/// This is an alias for `CubeHash<crate::avx2::AVX2>`.
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2", not(feature = "force-scalar")))]
-pub type CubeHashBest = CubeHash<crate::avx2::AVX2>;
-
-/// Auto-selected CubeHash type for the current target on x86/x86_64 without AVX2.
-///
-/// This is an alias for `CubeHash<crate::sse2::SSE2>`.
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(target_feature = "avx2"), not(feature = "force-scalar")))]
-pub type CubeHashBest = CubeHash<crate::sse2::SSE2>;
+/// The backend is picked at runtime per hasher instance: AVX2 when the CPU
+/// supports it, then SSE2, then the portable scalar backend. This is an alias
+/// for `CubeHash<crate::auto::AutoBackend>`.
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(feature = "force-scalar")))]
+pub type CubeHashBest = CubeHash<crate::auto::AutoBackend>;
 
 /// Auto-selected CubeHash type for the current target on AArch64 with NEON.
 ///
@@ -70,6 +66,12 @@ pub type CubeHashAuto = CubeHashBest;
 /// ```
 pub struct CubeHashN<const N: usize> {
     inner: CubeHashBest,
+}
+
+impl<const N: usize> Default for CubeHashN<N> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<const N: usize> CubeHashN<N> {
