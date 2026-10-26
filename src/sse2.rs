@@ -1,4 +1,4 @@
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(target_feature = "avx2"), not(feature = "force-scalar")))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(feature = "force-scalar")))]
 pub mod sse2_backend {
     use crate::{Backend, BLOCKSIZE, ROUNDS, CubeHashParams, rounds_for_rev};
     #[cfg(target_arch = "x86")]
@@ -6,13 +6,17 @@ pub mod sse2_backend {
     #[cfg(target_arch = "x86_64")]
     use core::arch::x86_64::*;
 
+    /// SSE2 backend. SSE2 is baseline on x86_64; on 32-bit x86 the CPU must
+    /// support it at runtime (checked by the dispatcher in `crate::auto`).
+    /// The intrinsics live in `#[target_feature(enable = "sse2")]` functions
+    /// so this module compiles on every x86/x86_64 target.
     pub struct SSE2 {
         x0: __m128i, x1: __m128i, x2: __m128i, x3: __m128i,
         x4: __m128i, x5: __m128i, x6: __m128i, x7: __m128i
     }
 
     impl SSE2 {
-        #[inline(always)]
+        #[target_feature(enable = "sse2")]
         unsafe fn rounds(&mut self) {
             let mut y0: __m128i;
             let mut y1: __m128i;
@@ -50,60 +54,74 @@ pub mod sse2_backend {
                 self.x3 = _mm_xor_si128(self.x3, self.x7);
             }
         }
+
+        #[target_feature(enable = "sse2")]
+        unsafe fn init(params: CubeHashParams) -> Self {
+            let (irounds, _frounds) = rounds_for_rev(params.revision);
+            let mut st = SSE2 {
+                x0: _mm_set_epi32(0, ROUNDS, BLOCKSIZE as i32, params.hash_len_bits / 8),
+                x1: _mm_setzero_si128(),
+                x2: _mm_setzero_si128(),
+                x3: _mm_setzero_si128(),
+                x4: _mm_setzero_si128(),
+                x5: _mm_setzero_si128(),
+                x6: _mm_setzero_si128(),
+                x7: _mm_setzero_si128(),
+            };
+            for _ in 0..(irounds / ROUNDS) { st.rounds(); }
+            st
+        }
+
+        #[target_feature(enable = "sse2")]
+        unsafe fn absorb(&mut self, block32: &[u8]) {
+            debug_assert_eq!(block32.len(), BLOCKSIZE);
+            let p = block32.as_ptr() as *const __m128i;
+            self.x0 = _mm_xor_si128(self.x0, _mm_loadu_si128(p));
+            self.x1 = _mm_xor_si128(self.x1, _mm_loadu_si128(p.add(1)));
+            self.rounds();
+        }
+
+        #[target_feature(enable = "sse2")]
+        unsafe fn finalize_flag(&mut self) {
+            self.x7 = _mm_xor_si128(self.x7, _mm_set_epi32(0, 1, 0, 0));
+        }
+
+        #[target_feature(enable = "sse2")]
+        unsafe fn output(&self) -> [u8; 64] {
+            let x0: [u8; 16] = core::mem::transmute(self.x0);
+            let x1: [u8; 16] = core::mem::transmute(self.x1);
+            let x2: [u8; 16] = core::mem::transmute(self.x2);
+            let x3: [u8; 16] = core::mem::transmute(self.x3);
+            let mut out = [0u8; 64];
+            out[0..16].copy_from_slice(&x0);
+            out[16..32].copy_from_slice(&x1);
+            out[32..48].copy_from_slice(&x2);
+            out[48..64].copy_from_slice(&x3);
+            out
+        }
     }
 
     impl Backend for SSE2 {
         fn new(params: CubeHashParams) -> Self {
-            unsafe {
-                let (irounds, _frounds) = rounds_for_rev(params.revision);
-                let mut st = SSE2 {
-                    x0: _mm_set_epi32(0, ROUNDS, BLOCKSIZE as i32, params.hash_len_bits / 8),
-                    x1: _mm_setzero_si128(),
-                    x2: _mm_setzero_si128(),
-                    x3: _mm_setzero_si128(),
-                    x4: _mm_setzero_si128(),
-                    x5: _mm_setzero_si128(),
-                    x6: _mm_setzero_si128(),
-                    x7: _mm_setzero_si128(),
-                };
-                for _ in 0..(irounds / ROUNDS) { st.rounds(); }
-                st
-            }
+            unsafe { Self::init(params) }
         }
 
         fn absorb_block(&mut self, block32: &[u8]) {
-            unsafe {
-                debug_assert_eq!(block32.len(), BLOCKSIZE);
-                let p = block32.as_ptr() as *const __m128i;
-                self.x0 = _mm_xor_si128(self.x0, _mm_loadu_si128(p));
-                self.x1 = _mm_xor_si128(self.x1, _mm_loadu_si128(p.add(1)));
-                self.rounds();
-            }
+            unsafe { self.absorb(block32) }
         }
 
         fn set_finalize_flag(&mut self) {
-            unsafe { self.x7 = _mm_xor_si128(self.x7, _mm_set_epi32(0, 1, 0, 0)); }
+            unsafe { self.finalize_flag() }
         }
 
-        fn rounds_only(&mut self) { unsafe { self.rounds(); } }
+        fn rounds_only(&mut self) { unsafe { self.rounds() } }
 
         fn output_full(&self) -> [u8; 64] {
-            unsafe {
-                let x0: [u8; 16] = core::mem::transmute(self.x0);
-                let x1: [u8; 16] = core::mem::transmute(self.x1);
-                let x2: [u8; 16] = core::mem::transmute(self.x2);
-                let x3: [u8; 16] = core::mem::transmute(self.x3);
-                let mut out = [0u8; 64];
-                out[0..16].copy_from_slice(&x0);
-                out[16..32].copy_from_slice(&x1);
-                out[32..48].copy_from_slice(&x2);
-                out[48..64].copy_from_slice(&x3);
-                out
-            }
+            unsafe { self.output() }
         }
     }
 }
 
 // Re-export at crate level
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(target_feature = "avx2"), not(feature = "force-scalar")))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(feature = "force-scalar")))]
 pub use sse2_backend::SSE2;

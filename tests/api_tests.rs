@@ -85,6 +85,42 @@ fn rev3_fixed_wrappers_match_generic() {
 
 
 #[test]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), not(feature = "force-scalar")))]
+fn x86_backends_agree_with_each_other() {
+    use cubehash::{CubeHash, AVX2, SSE2, Scalar};
+
+    let inputs: &[&[u8]] = &[
+        b"",
+        b"abc",
+        b"hello world",
+        b"0123456789abcdef0123456789abcdef0123456", // spans multiple blocks
+    ];
+    for &data in inputs {
+        for &(revision, bits) in &[(2, 256), (3, 512), (2, 128)] {
+            let params = CubeHashParams { revision, hash_len_bits: bits };
+
+            let mut h = CubeHash::<Scalar>::new(params);
+            h.update(data);
+            let expected = h.finalize();
+
+            if std::is_x86_feature_detected!("sse2") {
+                let mut h = CubeHash::<SSE2>::new(params);
+                h.update(data);
+                assert_eq!(h.finalize(), expected, "sse2 mismatch, rev={revision} bits={bits}");
+            }
+            if std::is_x86_feature_detected!("avx2") {
+                let mut h = CubeHash::<AVX2>::new(params);
+                h.update(data);
+                assert_eq!(h.finalize(), expected, "avx2 mismatch, rev={revision} bits={bits}");
+            }
+
+            // The runtime dispatcher must agree with the scalar reference.
+            assert_eq!(cubehash_bytes(data, revision, bits), expected, "auto mismatch");
+        }
+    }
+}
+
+#[test]
 fn rev2_known_vectors_empty_message() {
     let expected_512_hex = "4a1d00bbcfcb5a9562fb981e7f7db3350fe2658639d948b9d57452c22328bb32\
                             f468b072208450bad5ee178271408be0b16e5633ac8a1e3cf9864cfbfc8e043a";
