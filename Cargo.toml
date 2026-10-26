@@ -23,6 +23,8 @@ include = [
   "src/scalar.rs",
   "src/wasm32.rs",
   "src/auto.rs"
+  # src/main.rs is intentionally excluded: the published crate is
+  # library-only; the CLI binary builds from a repo checkout.
 ]
 
 [lib]

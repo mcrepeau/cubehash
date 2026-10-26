@@ -60,6 +60,9 @@ let digest: Vec<u8> = h.finalize(); // length = hash_len_bits / 8
 
 ### CLI usage
 
+The CLI binary is built from this repository; the crates.io package ships the
+library only, so the binary is not available from a crates.io dependency.
+
 Build and run the CLI:
 ```
 cargo build --release
