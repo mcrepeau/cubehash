@@ -51,6 +51,8 @@ pub type CubeHashAuto = CubeHashBest;
 ///
 /// `CubeHashN<N>` builds on top of the auto-selected backend and exposes the same
 /// `update`/`finalize` streaming API. `finalize` returns a fixed-size array of `N` bytes.
+/// `N` must be in `1..=64` (enforced at compile time; CubeHash digests are at
+/// most 512 bits).
 ///
 /// Typically you will use the aliases `CubeHash256`, `CubeHash384`, or `CubeHash512` instead of
 /// instantiating this type directly.
@@ -79,6 +81,11 @@ impl<const N: usize> CubeHashN<N> {
     ///
     /// The digest size is determined by `N` (in bytes).
     ///
+    /// # Compile-time requirement
+    ///
+    /// `N` must be in `1..=64` (CubeHash digests are at most 512 bits);
+    /// instantiating `CubeHashN<N>` outside that range fails to compile.
+    ///
     /// Example:
     /// ```rust
     /// use cubehash::CubeHash384;
@@ -89,6 +96,12 @@ impl<const N: usize> CubeHashN<N> {
     /// assert_eq!(out.len(), 48);
     /// ```
     pub fn new() -> Self {
+        const {
+            assert!(
+                N >= 1 && N <= 64,
+                "CubeHashN<N> requires 1 <= N <= 64 bytes (CubeHash digests are at most 512 bits)"
+            );
+        }
         Self {
             inner: CubeHashBest::new(CubeHashParams {
                 revision: 3,

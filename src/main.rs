@@ -14,7 +14,11 @@ fn help() {
     println!("If STRING is provided, it is hashed directly. Otherwise, input is read from stdin.");
 }
 
-const BUFSIZE: i32 = 65536;
+const BUFSIZE: usize = 65536;
+
+/// Exit code for usage errors (bad flags, invalid parameters),
+/// following the common convention of 2 = command-line misuse.
+const EXIT_USAGE: i32 = 2;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
@@ -32,21 +36,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if i >= args.len() {
                     eprintln!("error: -l requires a number");
                     help();
-                    return Ok(());
+                    std::process::exit(EXIT_USAGE);
                 }
                 let n: i32 = match args[i].parse() {
                     Ok(x) => x,
                     Err(_) => {
                         eprintln!("error: invalid hash length");
                         help();
-                        return Ok(());
+                        std::process::exit(EXIT_USAGE);
                     }
                 };
                 hashlen = n;
             }
             "-h" => { help(); return Ok(()); }
+            s if s.starts_with('-') => {
+                eprintln!("error: unknown option: {s}");
+                help();
+                std::process::exit(EXIT_USAGE);
+            }
             s => {
                 // Any other argument is treated as string input
+                if string_input.is_some() {
+                    eprintln!("error: multiple inputs given; provide at most one STRING");
+                    help();
+                    std::process::exit(EXIT_USAGE);
+                }
                 string_input = Some(s.to_string());
             }
         }
@@ -56,7 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let params = CubeHashParams { revision, hash_len_bits: hashlen };
     if let Err(e) = params.validate() {
         eprintln!("error: {e}");
-        return Ok(());
+        std::process::exit(EXIT_USAGE);
     }
     let mut hasher = CubeHashBest::new(params);
 
@@ -65,7 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         hasher.update(input.as_bytes());
     } else {
         // Stream from stdin in BLOCKSIZE chunks
-        let mut buffer = [0u8; BUFSIZE as usize];
+        let mut buffer = [0u8; BUFSIZE];
         let stdin = io::stdin();
         let mut handle = stdin.lock();
         loop {
