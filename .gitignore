@@ -1,3 +1,6 @@
+# IDE state
+.idea/
+
 # Rust build artifacts
 target/
 **/*.rs.bk

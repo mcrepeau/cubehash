@@ -28,6 +28,22 @@ jobs:
         shell: bash
         run: bash scripts/verify_manifest.sh
 
+  msrv:
+    name: MSRV check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read MSRV from Cargo.toml
+        id: msrv
+        run: echo "msrv=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].rust_version')" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.msrv.outputs.msrv }}
+      - name: cargo check (default features)
+        run: cargo check
+      - name: cargo check (force-scalar)
+        run: cargo check --features force-scalar
+
   verify-wasm-digests:
     name: Verify WASM digests (wasm32)
     runs-on: ubuntu-latest

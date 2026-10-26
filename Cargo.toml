@@ -3,6 +3,9 @@ name = "cubehash"
 version = "0.5.0"
 authors = ["Matthieu Crépeau <matthieu.crepeau@outlook.com>"]
 edition = "2021"
+# Minimum supported Rust version: verified locally and by the MSRV CI job.
+# Gated by inline const expressions (stable since 1.79).
+rust-version = "1.79"
 description = "CubeHash (rev2/rev3) hashing with SIMD acceleration and portable fallback"
 license = "MIT"
 readme = "README.md"
