@@ -1,12 +1,12 @@
 #[cfg(all(target_arch = "aarch64", not(feature = "force-scalar")))]
 pub mod neon_backend {
     use crate::{Backend, BLOCKSIZE, ROUNDS, CubeHashParams, rounds_for_rev};
-    use std::convert::TryInto;
     use core::arch::aarch64::*;
 
     #[inline(always)]
     unsafe fn load_le_u32x4_reversed(bytes: &[u8]) -> uint32x4_t {
-        // matches your helper: d,c,b,a order to match intrinsic behavior
+        // Little-endian words in reversed lane order (word 3 -> lane 0),
+        // matching the scalar backend's layout.
         let a = u32::from_le_bytes(bytes[12..16].try_into().unwrap());
         let b = u32::from_le_bytes(bytes[8..12].try_into().unwrap());
         let c = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
